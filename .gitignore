@@ -1,0 +1,19 @@
+# Data and outputs (not committed)
+data/
+logs/
+downloads/
+raw/
+
+# Rasters (large binary files): WorldPop original/cropped, Landsat assets
+*.tif
+*.tiff
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Streamlit / env
+.streamlit/secrets.toml
+.env
