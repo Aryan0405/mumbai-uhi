@@ -30,12 +30,14 @@ TARGET_TRANSFORM = from_origin(MINX, MAXY, 30.0, 30.0)
 TARGET_WIDTH = int(round((MAXX - MINX) / 30.0))
 TARGET_HEIGHT = int(round((MAXY - MINY) / 30.0))
 
-_bmc = gpd.read_file(config.BMC_GEOJSON).dissolve()
+# Dissolved BMC polygon, reprojected to EPSG:32643 before rasterizing.
+_bmc = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
 BMC_MASK = rio_rasterize(
     [shp_mapping(g) for g in _bmc.geometry],
     out_shape=(TARGET_HEIGHT, TARGET_WIDTH),
     transform=TARGET_TRANSFORM, fill=0, default_value=1, dtype="uint8",
 ).astype(bool)
+print(f"BMC mask pixels: {int(BMC_MASK.sum())} of {BMC_MASK.size}")
 
 
 def search_window_b():
@@ -61,12 +63,18 @@ def load_asset_cached(it, asset_name):
         return np.load(path)
     href = pc.sign(it.assets[asset_name].href)
     with rasterio.open(href) as src:
-        data = src.read(1)
         dst = np.empty((TARGET_HEIGHT, TARGET_WIDTH), dtype="float32")
-        reproject(data, dst, src.transform, src.crs,
-                  TARGET_TRANSFORM, config.CRS_METRIC,
-                  resampling=Resampling.nearest,
-                  src_nodata=src.nodata, dst_nodata=np.nan)
+        reproject(
+            source=rasterio.band(src, 1),
+            destination=dst,
+            src_transform=src.transform,
+            src_crs=src.crs,
+            dst_transform=TARGET_TRANSFORM,
+            dst_crs=config.CRS_METRIC,
+            resampling=Resampling.nearest,
+            src_nodata=src.nodata,
+            dst_nodata=np.nan,
+        )
     np.save(path, dst)
     return dst
 

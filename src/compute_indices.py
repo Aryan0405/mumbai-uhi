@@ -33,12 +33,21 @@ def write_band(name, arr, transform, crs):
         dst.write(arr.astype("float32"), 1)
 
 
-def quicklook(name, arr, vmin, vmax, cmap, label):
+def quicklook(name, arr, vmin, vmax, cmap, label, extent=None, bmc4326=None,
+              mask_nan=True):
     fig, ax = plt.subplots(figsize=(7, 6))
-    show = np.where(np.isnan(arr), np.nan, arr)
-    im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax)
+    show = np.where(np.isnan(arr), np.nan, arr) if mask_nan else arr
+    im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin="upper")
     ax.set_title(f"{label} (masked)")
     ax.set_axis_off()
+    if bmc4326 is not None:
+        for geom in bmc4326.geometry:
+            if geom.is_empty:
+                continue
+            geoms = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
+            for g in geoms:
+                xs, ys = g.exterior.xy
+                ax.plot(xs, ys, color="white", linewidth=0.8, alpha=0.9)
     plt.colorbar(im, ax=ax, fraction=0.046)
     plt.tight_layout()
     out = os.path.join(LOGS, f"quicklook_{name}.png")
@@ -124,10 +133,18 @@ def main():
               f"(n={win.size}, window rows {r0}:{r1} cols {c0}:{c1})")
 
     # ---- Quicklooks ----
-    quicklook("lst_composite", lst, 15, 50, "hot", "LST composite")
-    quicklook("ndvi", ndvi, -1, 1, "RdYlGn", "NDVI")
-    quicklook("ndbi", ndbi, -1, 1, "RdYlBu_r", "NDBI")
-    quicklook("valid_count", vcount, 0, 26, "YlGn", "Valid observation count")
+    # Extent in EPSG:32643 meters (left, right, bottom, top), origin="upper".
+    H, W = lwir.shape
+    extent = (tf.c, tf.c + tf.a * W, tf.f + tf.e * H, tf.f)
+    bmc32643 = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
+    quicklook("lst_composite", lst, 15, 50, "hot", "LST composite", extent=extent,
+              bmc4326=bmc32643)
+    quicklook("ndvi", ndvi, -1, 1, "RdYlGn", "NDVI", extent=extent,
+              bmc4326=bmc32643)
+    quicklook("ndbi", ndbi, -1, 1, "RdYlBu_r", "NDBI", extent=extent,
+              bmc4326=bmc32643)
+    quicklook("valid_count", vcount, 0, 26, "YlGn", "Valid observation count",
+              extent=extent, bmc4326=bmc32643)
     print("Quicklook PNGs written to logs/")
 
 

@@ -1,24 +1,10 @@
-"""Phase 2 step 10: Unit tests for scale-factor math and QA bit masking
-on small synthetic arrays. No real satellite data required.
+"""Phase 2 unit tests for scale-factor math and QA bit masking.
+Calls functions from src.utils (does not re-implement the math).
 """
 import numpy as np
 import pytest
 
-
-def apply_scale_offset(dn, scale, offset):
-    return dn.astype("float64") * scale + offset
-
-
-def kelvin_to_celsius(k):
-    return k - 273.15
-
-
-def qa_valid(qa, bits=(1, 2, 3, 4)):
-    """True where none of the given QA bits are set (and fill bit 0 unset)."""
-    valid = ((qa >> 0) & 1) == 0
-    for b in bits:
-        valid &= ((qa >> b) & 1) == 0
-    return valid
+from utils import apply_scale_offset, kelvin_to_celsius, qa_valid, ndvi, ndbi
 
 
 def test_scale_offset_math():
@@ -42,18 +28,21 @@ def test_lst_celsius_range():
 def test_ndvi_range():
     nir = np.array([0.2, 0.8])
     red = np.array([0.1, 0.2])
-    ndvi = (nir - red) / (nir + red)
-    assert np.all((ndvi >= -1) & (ndvi <= 1))
+    assert np.all((ndvi(nir, red) >= -1) & (ndvi(nir, red) <= 1))
+
+
+def test_ndbi_formula():
+    swir = np.array([0.5, 0.1])
+    nir = np.array([0.2, 0.4])
+    assert np.isclose(ndbi(swir, nir)[0], (0.5 - 0.2) / (0.5 + 0.2))
+    assert np.isclose(ndbi(swir, nir)[1], (0.1 - 0.4) / (0.1 + 0.4))
 
 
 def test_qa_bit_masking():
     qa = np.zeros((4, 4), dtype="uint16")
-    # set cloud bit 3 on one pixel
-    qa[0, 0] |= (1 << 3)
-    # set shadow bit 4 on another
-    qa[1, 1] |= (1 << 4)
-    # set cirrus bit 2 on another
-    qa[2, 2] |= (1 << 2)
+    qa[0, 0] |= (1 << 3)   # cloud bit 3
+    qa[1, 1] |= (1 << 4)   # shadow bit 4
+    qa[2, 2] |= (1 << 2)   # cirrus bit 2
     valid = qa_valid(qa)
     assert not valid[0, 0]
     assert not valid[1, 1]
@@ -64,13 +53,4 @@ def test_qa_bit_masking():
 
 def test_fill_bit_masking():
     qa = np.ones((2, 2), dtype="uint16")  # fill bit 0 set everywhere
-    valid = qa_valid(qa)
-    assert valid.sum() == 0
-
-
-def test_ndbi_formula():
-    swir = np.array([0.5, 0.1])
-    nir = np.array([0.2, 0.4])
-    ndbi = (swir - nir) / (swir + nir)
-    assert np.isclose(ndbi[0], (0.5 - 0.2) / (0.5 + 0.2))
-    assert np.isclose(ndbi[1], (0.1 - 0.4) / (0.1 + 0.4))
+    assert qa_valid(qa).sum() == 0

@@ -50,18 +50,18 @@ Role of agent: senior data engineer building end-to-end, running code, reading e
 - Never synthesize LST, NDVI, or NDBI. If Landsat check fails, STOP and report.
 
 ## 3. Landsat loading and stacking
-- Library: stackstac with rioxarray (and xarray).
-  Justification: stackstac is purpose-built to load STAC items into a single
-  xarray DataArray, handles reprojection/resampling to a common grid, works with
-  rasterio and signed URLs, and keeps the dependency footprint small. odc-stac
-  is a valid alternative but is a heavier ecosystem; stackstac fits the
-  small-modules preference.
-- Signed URLs expire (short-lived). Do not sign per-asset just before each read.
-  Instead, process scenes in small batches and sign each batch when its stack is
-  created, using planetary-computer's sign method on the batch's asset hrefs.
-  Retry on HTTP 403 / 401 expiry by re-signing that batch. Prove it works in
-  Phase 2 by loading at least two full scenes into one stackstac stack and
-  printing the stack shape and a sample of finite (non-NaN) pixel values.
+- Loader: rasterio with per-batch signing (stackstac 0.5.0 is incompatible with the
+  env's numpy 2.x, so it is not used).
+  For each acquisition date, sign the batch's asset hrefs via
+  planetary-computer.sign just before stacking, reproject each asset to EPSG:32643
+  at 30 m over the box grid, mosaic the two WRS-2 rows per date via nanmedian, then
+  composite per-pixel median across dates. Retry on HTTP 403 / 401 expiry by
+  re-signing that batch. Signed URLs are never cached across runs.
+- Bytes_est in the pilot log is the sum of Content-Length from HEAD on each signed
+  asset = the full COG asset size. We read only the box window (rasterio reproject
+  uses HTTP range reads on the COG), so actual bytes transferred are much less than
+  bytes_est; bytes_est is an overestimate. Per-scene arrays are cached in
+  data/landsat/cache/ (gitignored) so re-runs do not re-download.
 
 ## 4. Folder layout
 ```

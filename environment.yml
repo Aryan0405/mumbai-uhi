@@ -16,7 +16,6 @@ dependencies:
   - pytest
   - requests
   - tqdm
-  - stackstac
   - rioxarray
   - xarray
   - dask
