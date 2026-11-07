@@ -8,7 +8,7 @@ Role of agent: senior data engineer building end-to-end, running code, reading e
 - Environment name: `uhi` (project folder `mumbai-uhi` is unrelated; do not rename).
 - Write `environment.yml` with channel conda-forge, python 3.11, packages:
   geopandas, rasterio, scikit-learn, scipy, numpy, pandas, matplotlib, folium,
-  pydeck, streamlit, pytest, requests, tqdm, stackstac, rioxarray, xarray.
+  pydeck, streamlit, pytest, requests, tqdm, stackstac, rioxarray, xarray, dask.
   pystac-client and planetary-computer go in a pip section inside environment.yml.
 - Create exactly with: `conda env create -f environment.yml`.
 - Never use bare python or pip. Always: `conda run -n uhi python <script>`,
@@ -52,9 +52,12 @@ Role of agent: senior data engineer building end-to-end, running code, reading e
   rasterio and signed URLs, and keeps the dependency footprint small. odc-stac
   is a valid alternative but is a heavier ecosystem; stackstac fits the
   small-modules preference.
-- Signed URLs expire (short-lived). On long runs, re-sign by re-requesting the
-  asset's signed URL via planetary-computer's sign method just before each read,
-  and retry on HTTP 403 / 401 expiry. Never cache a signed URL across runs.
+- Signed URLs expire (short-lived). Do not sign per-asset just before each read.
+  Instead, process scenes in small batches and sign each batch when its stack is
+  created, using planetary-computer's sign method on the batch's asset hrefs.
+  Retry on HTTP 403 / 401 expiry by re-signing that batch. Prove it works in
+  Phase 2 by loading at least two full scenes into one stackstac stack and
+  printing the stack shape and a sample of finite (non-NaN) pixel values.
 
 ## 4. Folder layout
 ```
@@ -67,6 +70,7 @@ mumbai-uhi/                      project root (environment name is uhi)
 ├── README.md                    setup, real computed results, limitations (Phase 5)
 ├── logs/                        full stdout of important runs
 ├── src/                         pipeline scripts (each under 300 lines)
+│   ├── config.py                box, CRS, thresholds, window dates; all scripts import from it
 │   ├── smoke_test.py            Phase 1 feasibility gate
 │   ├── fetch_landsat.py         Phase 2: search, download signed assets
 │   ├── compute_indices.py       Phase 2: LST, NDVI, NDBI, QA mask, median composite, obs count
@@ -131,18 +135,25 @@ plus measured numbers per item; paste raw output into it.
   500 m cell with fewer than 3 valid observations.
 - MEASURABLE: expected 500 m grid cell count before land masking ~3,900
   (box ~973 km² / 0.25 km² per cell; computed exactly in Phase 2).
+- MEASURABLE: pytest unit test for scale-factor math (DN * scale + offset)
+  using small synthetic arrays; run in Phase 2.
+  (box ~973 km² / 0.25 km² per cell; computed exactly in Phase 2).
 - WorldPop crop via src/crop_population.py. Population from cropped WorldPop raster.
   State it is 2020 data while imagery is newer.
-- MEASURABLE: cropped population sum compared against cited reference total:
-  BMC mid-year 2020 estimate 12,875,213 people (mcgm.gov.in, area 483.14 km²).
-  Exact match not expected because the study box differs from the BMC boundary
-  and includes sea; sum must be a plausible ballpark, not zero or millions off.
+- MEASURABLE: cropped population sum compared against cited reference totals:
+  Census 2011 Greater Mumbai population 12,442,373, and MCGM mid-year 2023 estimate
+  13,014,390 (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
+  The study box differs from the BMC boundary and includes sea, so exact match is
+  not expected. Numeric rule: the cropped WorldPop sum must be between 11.0 and
+  14.5 million. If it is outside that range, STOP and report.
 
 ### Phase 3 (ANALYSIS)
 - Reproject to EPSG:32643. Aggregate onto 500 m grid clipped to land (exclude sea
   and large water via NDWI or WorldCover).
 - WorldPop gives people per pixel: aggregate to 500 m cells by SUM and divide by
-  cell area. Never average.
+  cell area. Never average. Never resample counts with bilinear or average.
+- MEASURABLE: total population before and after aggregation to the 500 m grid
+  must agree within 1 percent.
 - K-Means on standardized LST, NDVI, NDBI. Choose k by silhouette score; show
   evidence.
 - Vulnerability Index = weighted z-scores of hazard (LST), sensitivity (low NDVI,
@@ -163,8 +174,8 @@ plus measured numbers per item; paste raw output into it.
 - Processed data under 100 MB total (GeoParquet or compressed GeoJSON).
 
 ### Phase 5 (QUALITY)
-- pytest tests for scale-factor math, grid aggregation, index computation on small
-  synthetic arrays.
+- pytest tests for grid aggregation, index computation on small synthetic arrays.
+  (Scale-factor math test moved to Phase 2.)
 - environment.yml, requirements-conda.txt (`conda list --export`), one-command
   reproduce script using `conda run -n uhi`, README with setup, real computed
   results, limitations, screenshots.
@@ -186,8 +197,7 @@ plus measured numbers per item; paste raw output into it.
 - `--no-capture-output` flag may not be supported by all conda versions; if it
   errors, report exact message.
 - Download time, memory use (WorldPop full India raster is large; crop after
-  ranged read or download then delete), and signed URL expiry (re-sign before
-  each read).
+  ranged read or download then delete), and signed URL expiry (sign per batch).
 - Do not choose season window; gate measures both.
 - Do not synthesize LST/NDVI/NDBI. Real data first.
 - WorldPop synthetic only on explicit approval after gate failure.
