@@ -17,3 +17,6 @@ __pycache__/
 # Streamlit / env
 .streamlit/secrets.toml
 .env
+
+# Scratch / debugging (never commit)
+scratch/

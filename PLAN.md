@@ -37,8 +37,12 @@ Role of agent: senior data engineer building end-to-end, running code, reading e
   `GIS/Population/Global_2000_2020_Constrained/2020/`. Folder (maxar_v1 or BSGM)
   discovered by reading the directory listing; never guessed.
 - Study box: lon 72.77 to 72.99, lat 18.89 to 19.27. Metric CRS EPSG:32643.
-- Season: not chosen by agent. Gate measures both Window A (Nov to Mar) and
-  Window B (Mar to May). User picks the window after the gate.
+- Scope: Greater Mumbai. Analysis is clipped to the BMC polygon
+  (data/boundary/BMC_Wards.geojson, dissolved, DataMeet Municipal_Spatial_Data,
+  CC BY 4.0, https://github.com/sanjanakrishnan/mumbai_spatial_data). Clipping
+  happens in Phase 3. Phase 2 keeps full-box rasters.
+- Season: Window B only, Mar to May 2024, Mar to May 2025, Mar to May 2026.
+  Landsat 8 and 9 only, scene cloud cover under 10 percent. Window A is not used.
 - Synthetic population: NOT allowed to run automatically. Only on explicit user
   approval if WorldPop fails the gate, with SYNTHETIC markers, fixed seed,
   generator script, cited sources, and README section. Never mixed with real
@@ -102,10 +106,10 @@ plus measured numbers per item; paste raw output into it.
    Print HTTP status and response size for each. OPTIONAL fallback host only if
    data.worldpop.org fails, and say so.
 2. Landsat: search `landsat-c2-l2` over box, cloud cover < 10%, platforms
-   landsat-8 and landsat-9. Print scene counts and scene IDs per window:
-   Window A: Nov 2023-Mar 2024, Nov 2024-Mar 2025, Nov 2025-Mar 2026.
+   landsat-8 and landsat-9, Window B only (Mar to May 2024/2025/2026). Print scene
+   counts and scene IDs per year:
    Window B: Mar-May 2024, Mar-May 2025, Mar-May 2026.
-   REQUIRED: at least 5 usable scenes total in at least one window. Print WRS-2
+   REQUIRED: at least 5 usable scenes total across all three years. Print WRS-2
    path and row per scene; say whether box spans more than one tile.
 3. Read two 128x128 windows of `lwir11` from one scene via signed URLs:
    (a) dense built-up near lon 72.85, lat 19.05 (check land not water).
@@ -119,18 +123,24 @@ plus measured numbers per item; paste raw output into it.
    Confirm QA_PIXEL bit 3 cloud, bit 4 cloud shadow from asset metadata
    (classification:bitfields or equivalent); print that fragment.
 4. Population: HEAD `ind_ppp_2020_constrained.tif` on data.worldpop.org. Find India
-   file by reading directory listing under .../2020/ (maxar_v1 or BSGM; do not
-   guess). Print resolved URL and size. Crop to box, delete original, print cropped
-   shape, nodata, sum, min/max. If fails: mark population FAILED in FEASIBILITY.md
-   and STOP for user decision.
+   file by reading directory listing under .../2020/ (BSGM only; maxar_v1 has no IND
+   folder; do not guess). Print resolved URL and size. Download once to
+   data/population/raw/, do not delete the original. Crop to box, write to
+   data/population/, print cropped shape, nodata, sum, min/max. Sum inside and
+   outside dissolved BMC polygon against revised rule (inside BMC 12.0-14.5 million).
+   If fails: mark population FAILED in FEASIBILITY.md and STOP for user decision.
 5. Environment: imports of geopandas, rasterio, scikit-learn, streamlit,
    pystac_client, planetary_computer clean inside `uhi`; print versions.
 
 ### Phase 2 (DATA) - scripts in src/, outputs in data/
-- Landsat 8 and 9 C2 L2, cloud < 10%, season window chosen by user after gate.
-- Compute LST (C), NDVI (nir08, red), NDBI (swir16, nir08) with scale/offset from
-  metadata. Mask cloud and shadow with QA_PIXEL. Per-pixel median composite.
+- Landsat 8 and 9 C2 L2, cloud < 10%, Window B (Mar to May 2024/2025/2026) only.
+- Compute LST (C), NDVI (nir08, red), NDBI (swir16, nir08), NDWI (green, nir08)
+  with scale/offset from metadata. Mask fill, dilated cloud (bit 1), cirrus (bit 2),
+  cloud (bit 3) and cloud shadow (bit 4) from QA_PIXEL. Per-pixel median composite.
 - MEASURABLE: NDVI values within [-1, 1]. LST values in range 15 to 50 C.
+- LST sanity rule (provisional): report the 0.1th and 99.9th percentile and the max
+  of the composite, plus the count of pixels above 50 C. Report only, do not silently
+  loosen or tighten anything.
 - Output per-pixel count of valid observations; report distribution; flag any
   500 m cell with fewer than 3 valid observations.
 - MEASURABLE: expected 500 m grid cell count before land masking ~3,900
@@ -140,16 +150,20 @@ plus measured numbers per item; paste raw output into it.
   (box ~973 km² / 0.25 km² per cell; computed exactly in Phase 2).
 - WorldPop crop via src/crop_population.py. Population from cropped WorldPop raster.
   State it is 2020 data while imagery is newer.
-- MEASURABLE: cropped population sum compared against cited reference totals:
-  Census 2011 Greater Mumbai population 12,442,373, and MCGM mid-year 2023 estimate
-  13,014,390 (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
-  The study box differs from the BMC boundary and includes sea, so exact match is
-  not expected. Numeric rule: the cropped WorldPop sum must be between 11.0 and
-  14.5 million. If it is outside that range, STOP and report.
+- MEASURABLE: cropped population sum compared against cited reference totals.
+  REFERENCE POINTS: Census 2011 Greater Mumbai population 12,442,373, and MCGM
+  mid-year 2023 estimate 13,014,390
+  (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
+  RULE (REVISED AFTER INSPECTION - the original 11.0 to 14.5 million range was a
+  guess made before the box was understood): WorldPop sum INSIDE the BMC polygon
+  must be between 12.0 and 14.5 million. Measured inside BMC: 13,661,494.
+  Outside BMC within the box: 1,367,594. Pixels were assigned to the polygon if
+  their centre point falls within the dissolved BMC polygon (centre-point rule,
+  not any-touch).
 
 ### Phase 3 (ANALYSIS)
-- Reproject to EPSG:32643. Aggregate onto 500 m grid clipped to land (exclude sea
-  and large water via NDWI or WorldCover).
+- Reproject to EPSG:32643. Aggregate onto 500 m grid clipped to the dissolved BMC
+  polygon (exclude sea; use NDWI or WorldCover for any residual water).
 - WorldPop gives people per pixel: aggregate to 500 m cells by SUM and divide by
   cell area. Never average. Never resample counts with bilinear or average.
 - MEASURABLE: total population before and after aggregation to the 500 m grid
@@ -183,13 +197,10 @@ plus measured numbers per item; paste raw output into it.
   tests pass, README claims match actual outputs.
 
 ## 6. Scope note
-- The study box (lon 72.77 to 72.99, lat 18.89 to 19.27, ~973 km²) likely extends
-  beyond the Brihanmumbai Municipal Corporation (BMC) boundary (483.14 km²) and
-  includes sea.
-- Two options, do not decide now:
-  (a) clip analysis to an administrative boundary (e.g., BMC or MMR), or
-  (b) rename the study area to Mumbai metropolitan area.
-- User will choose.
+- Decision made: Greater Mumbai, analysis clipped to the BMC polygon
+  (data/boundary/BMC_Wards.geojson, dissolved). Phase 3 clips to BMC; Phase 2 keeps
+  full-box rasters. The box (~973 km²) extends beyond the BMC boundary and includes
+  sea.
 
 ## 7. Key risks / notes
 - conda shell may not keep activation between commands; always prefix with

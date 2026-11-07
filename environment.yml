@@ -1,0 +1,25 @@
+name: uhi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - geopandas
+  - rasterio
+  - scikit-learn
+  - scipy
+  - numpy
+  - pandas
+  - matplotlib
+  - folium
+  - pydeck
+  - streamlit
+  - pytest
+  - requests
+  - tqdm
+  - stackstac
+  - rioxarray
+  - xarray
+  - dask
+  - pip:
+    - pystac-client
+    - planetary-computer
