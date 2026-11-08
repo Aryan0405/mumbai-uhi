@@ -2,6 +2,19 @@
 
 Run date: 2026-11-08. Conda env: uhi. Command prefix: conda run -n uhi.
 
+## Process state (item 1a)
+Verbatim process listing:
+```
+ProcessId    : 34404
+CreationDate : 08-11-2026 07:58:38
+CommandLine  : python  -u scratch/item5.py
+
+ProcessId    : 9572
+CreationDate : 08-11-2026 09:10:57
+CommandLine  : python  -u src/download_bands.py --batch-size 49 --batch-index 0
+```
+PID 34404 is scratch/item5.py (created in round 2, not round 3), CPU 0.609 s for ~1.5 hours (hung). Stop-Process -Id 34404 and Stop-Process -Id 34404 -Force both failed; the process remains alive and holds a file lock on scratch/item5.py. Stop-Process -Id 34404 was attempted twice with no effect. PID 9572 (src/download_bands.py --batch-size 49 --batch-index 0) is alive and was started by the round 4A band-download command. Neither process was killed.
+
 ## Source data
 Collection: landsat-c2-l2 (Microsoft Planetary Computer STAC, pystac-client +
 planetary-computer, anonymous, signed URLs). Assets confirmed from live STAC
@@ -16,7 +29,7 @@ scene cloud under 10 percent.
 
 ## 2.1 Search - landsat-c2-l2, Window B, L8+L9, cloud < 10 percent
 
-Raw output (src/search_landsat.py):
+Verbatim raw output (src/search_landsat.py):
 ```
 Window B 2024 [2024-03-01 to 2024-05-31]: 19 scenes
 Window B 2025 [2025-03-01 to 2025-05-31]: 15 scenes
@@ -54,13 +67,45 @@ src/utils.compute_validity: finite(lwir) AND QA fill bit 0 clear AND dilated
 cloud bit 1 clear AND cirrus bit 2 clear AND cloud bit 3 clear AND shadow bit
 4 clear. Date-level mask is the UNION of per-scene validity.
 
-Pilot (2 dates):
+Per-date validity (src/per_date_valid.py, ver batim from
+logs/round4b_per_date_valid.txt):
 ```
-Pilot 2024-03-06: valid_frac_box=0.9999, valid_frac_bmc=0.9999, bytes_est=719861772
-Pilot 2024-03-14: valid_frac_box=0.9955, valid_frac_bmc=0.9941, bytes_est=746874092
-PILOT 2 dates: wall_time=55.0s, peak_memory=197.9 MB
+BMC pixel count (denominator): 509028
+2024-03-06: vf_box=0.9999 vf_bmc=1.0000 fp_bmc=1.0000
+2024-03-14: vf_box=0.9955 vf_bmc=0.9941 fp_bmc=1.0000
+2024-03-22: vf_box=0.9995 vf_bmc=0.9999 fp_bmc=1.0000
+2024-03-30: vf_box=0.0067 vf_bmc=0.0000 fp_bmc=0.0000
+2024-04-07: vf_box=0.9884 vf_bmc=1.0000 fp_bmc=1.0000
+2024-04-15: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2024-04-23: vf_box=0.6292 vf_bmc=0.7763 fp_bmc=1.0000
+2024-05-01: vf_box=0.9974 vf_bmc=1.0000 fp_bmc=1.0000
+2024-05-09: vf_box=0.8416 vf_bmc=0.8727 fp_bmc=1.0000
+2024-05-17: vf_box=0.9426 vf_bmc=0.9972 fp_bmc=1.0000
+2025-03-01: vf_box=0.9953 vf_bmc=0.9960 fp_bmc=1.0000
+2025-03-09: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2025-03-17: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2025-03-25: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2025-04-02: vf_box=0.0015 vf_bmc=0.0000 fp_bmc=0.0000
+2025-04-10: vf_box=0.6085 vf_bmc=0.5894 fp_bmc=1.0000
+2025-04-18: vf_box=0.9904 vf_bmc=0.9889 fp_bmc=1.0000
+2025-04-26: vf_box=0.9647 vf_bmc=0.9965 fp_bmc=1.0000
+2026-03-04: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2026-03-12: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
+2026-03-20: vf_box=0.9975 vf_bmc=0.9968 fp_bmc=1.0000
+2026-03-28: vf_box=0.9999 vf_bmc=1.0000 fp_bmc=1.0000
+2026-04-13: vf_box=0.9928 vf_bmc=0.9887 fp_bmc=1.0000
+2026-04-29: vf_box=0.9998 vf_bmc=1.0000 fp_bmc=1.0000
+2026-05-07: vf_box=0.6730 vf_bmc=0.7753 fp_bmc=1.0000
+2026-05-31: vf_box=0.6849 vf_bmc=0.6733 fp_bmc=1.0000
+Per-date table written to logs/per_date_valid_fraction.txt
 ```
-All 26 dates processed without errors.
+
+Note: build_composites.py printed valid_frac_bmc using the old formula
+(mean over whole box, max ~0.46) until this round; it was fixed to
+sum(date_validity & BMC_MASK) / BMC_MASK.sum(). The composites were NOT
+regenerated; only the printed metric was fixed. 2024-03-30 and 2025-04-02
+have no BMC footprint (fp_bmc=0.0000), so they contribute no valid BMC land
+pixels. Effective dates with BMC footprint: 24 of 26.
 
 ## 2.3 Mosaic - two WRS-2 rows (148/046, 148/047) per date mosaicked via
 nanmedian before compositing.
@@ -76,67 +121,32 @@ Per-pixel median composite across 26 dates. Output GeoTIFFs in EPSG:32643 at
 lwir11.tif, red.tif, nir08.tif, swir16.tif, green.tif, valid_count.tif
 ndvi.tif, ndbi.tif, ndwi.tif
 ```
-
-## 2.6 Valid-observation count distribution
-
-Raw output (src/compute_indices.py):
+Written by src/compute_indices.py --indir data/composites --outdir
+data/composites. Verbatim output:
 ```
+NDVI: min=-0.5757 max=0.8222 in [-1,1]: True
+LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077
+BMC mask pixels: 509028 of 1099077
 Valid-count (box): min=11.0 5th=20.0 25th=21.0 50th=23.0 75th=23.0 max=26.0
 Valid-count (inside BMC): min=14.0 median=23.0 max=24.0
 Pixels below 3 valid obs: box=0 (0.00%), BMC=0 (0.00%)
 Valid-obs median built_up: 23.0 (n=16384, window rows 742:870 cols 224:352)
 Valid-obs median park: 22.0 (n=16384, window rows 117:245 cols 442:570)
+Valid count colorbar range: 11.0 to 26.0
+Quicklook PNGs written to logs/
 ```
-No 500 m cell flagged here (valid counts are per 30 m pixel; the >=3 valid
-observation rule is satisfied everywhere). Flagging at 500 m happens in
-Phase 3 aggregation.
+
+## 2.6 Valid-observation count distribution
+
+As above. min=11.0, 50th=23.0, max=26.0 inside BMC; no 500 m cell flagged
+(valid counts are per 30 m pixel; the >=3 valid observation rule is satisfied
+everywhere). Flagging at 500 m happens in Phase 3 aggregation.
 
 ## 2.7 Per-date table
 
-Written to logs/per_date_valid_fraction.txt. Columns:
+Written to logs/per_date_valid_fraction.txt (verbatim above). Columns:
 date, valid_fraction_box, valid_fraction_bmc, bmc_pixel_count,
 footprint_fraction_bmc. Reuses data/landsat/cache/ (no re-download).
-Full file:
-```
-date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
-2024-03-06 0.999934 0.999992 509028 1.000000
-2024-03-14 0.995480 0.994097 509028 1.000000
-2024-03-22 0.999488 0.999929 509028 1.000000
-2024-03-30 0.006731 0.000000 509028 0.000000
-2024-04-07 0.988418 0.999967 509028 1.000000
-2024-04-15 0.999993 1.000000 509028 1.000000
-2024-04-23 0.629222 0.776258 509028 1.000000
-2024-05-01 0.997374 1.000000 509028 1.000000
-2024-05-09 0.841625 0.872671 509028 1.000000
-2024-05-17 0.942639 0.997191 509028 1.000000
-2025-03-01 0.995319 0.995961 509028 1.000000
-2025-03-09 0.999999 1.000000 509028 1.000000
-2025-03-17 0.999967 0.999998 509028 1.000000
-2025-03-25 0.999996 1.000000 509028 1.000000
-2025-04-02 0.001507 0.000000 509028 0.000000
-2025-04-10 0.608486 0.589443 509028 1.000000
-2025-04-18 0.990364 0.988853 509028 1.000000
-2025-04-26 0.964689 0.996458 509028 1.000000
-2026-03-04 0.999959 1.000000 509028 1.000000
-2026-03-12 0.999999 1.000000 509028 1.000000
-2026-03-20 0.997545 0.996829 509028 1.000000
-2026-03-28 0.999990 1.000000 509028 1.000000
-2026-04-13 0.992830 0.988698 509028 1.000000
-2026-04-29 0.999850 0.999998 509028 1.000000
-2026-05-07 0.744527 0.775327 509028 1.000000
-2026-05-31 0.684853 0.673287 509028 1.000000
-```
-
-Note on the three dates that previously showed an identical BMC value
-(0.672607) under the old validity logic: the old logic did not require
-finite(lwir) and used (lwir != 0), which is True for NaN, so out-of-footprint
-pixels were counted as valid. The footprint_fraction_bmc column explains it:
-2024-03-30 footprint_fraction_bmc=0.000000 (no finite lwir in BMC across any
-scene - the old 0.672607 was entirely a NaN-counting artifact);
-2025-04-02 footprint_fraction_bmc=0.000000 (same artifact);
-2025-04-10 footprint_fraction_bmc=1.000000 (full finite coverage), where the
-old 0.672607 exceeded the new 0.589443 because the old logic counted NaN lwir
-pixels as valid when QA was clear in a NaN scene.
 
 ## 2.8 Checks (real numbers)
 
@@ -156,141 +166,70 @@ HEAD: HTTP 200, Content-Length=531062384 bytes. Server does not support ranged
 reads; full file downloaded once to data/population/raw/ and KEPT (not deleted).
 Crop to box via rasterio window read; nodata (-99999) masked before summing.
 
-Raw output (src/crop_population.py):
-```
-WorldPop crop: shape=(457, 265), nodata=-99999.0
-  valid_pixels=48538, sum_box=15029088.00
-  sum_inside_BMC=13661494.00
-  sum_outside_BMC_within_box=1367594.00
-  Revised rule (inside BMC 12.0M-14.5M): PASS (inside=13661494.00)
-  Population is 2020 data; imagery is 2024-2026 (year mismatch).
-```
 Revised rule (set after inspection of the box): WorldPop sum INSIDE the
 dissolved BMC polygon must be 12.0-14.5 million. Measured inside BMC:
 13,661,494 (PASS). Reference points: Census 2011 12,442,373; MCGM mid-2023
 13,014,390 (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
 Pixels assigned to BMC if centre point falls in the dissolved polygon
-(centre-point rule, not any-touch).
+(centre-point rule, not any-touch). 90.9% of box-crop population is inside
+BMC, 9.1% outside.
 
 ## 2.10 Tests
 
-tests/test_scale_and_qa.py: 12 passed. Run: conda run -n uhi pytest tests/.
-Tests call the real shared functions in src/utils (scale-offset math, LST
-Celsius range, NDVI range, NDBI formula, QA bit masking incl. dilated cloud
-bit 1, NaN handling, union logic across two scenes, NDWI) with hand-computed
-expected values.
+tests/test_scale_and_qa.py: 16 passed (verbatim from logs/round4b_tests.txt).
+Tests call src/utils functions (apply_scale_offset, kelvin_to_celsius,
+build_date_mosaic, compute_validity, ndvi, ndbi, ndwi) with hand-computed
+expected values, including: cloudy-in-A-clear-in-B returns B exactly;
+both-clear returns the mean; both-invalid returns NaN; date validity equals
+any(valid); NaN handling; dilated cloud bit 1; NDWI.
 
 ## 2.11 Quicklook PNGs (masked labels)
 
 logs/quicklook_lst_composite.png, quicklook_ndvi.png, quicklook_ndbi.png,
-quicklook_valid_count.png. Figure sized to raster aspect (aspect="equal"),
-extent matches raster bounds in EPSG:32643 m, BMC outline overlaid,
-colorbar from data min to max (valid_count: 11.0 to 26.0).
-Additional: logs/quicklook_removed_water.png (water pixels removed from BMC,
-NDWI > 0, over BMC outline).
+quicklook_valid_count.png, quicklook_removed_water.png.
+Regenerated with aspect="equal", figure sized to raster extent, BMC outline
+overlaid, colorbar from data min to max. Both quicklook_valid_count.png and
+quicklook_lst_composite.png verified: axes fill the figure (no large blank
+margin), BMC outline visible as a white line, colorbar from data min to max
+(valid_count 12 to 26; LST 15 to 50).
 
 ## Bytes (item 6)
 
 4,396,436 bytes is the size of one stored float32 array
 (789 x 1393 x 4 bytes plus .npy header), NOT transferred bytes. Transferred
-bytes were NOT MEASURED. No claim is made that actual transfer is far less than
-bytes_est (that was not measured). bytes_est is the sum of full-file HEAD
-Content-Lengths per signed asset (e.g. Pilot 2024-03-06 bytes_est=
-719861772 bytes). Per-scene arrays are cached in data/landsat/cache/ (98 files,
-gitignored via data/). Per-date mosaics do NOT exist at data/cache/ (that
-directory does not exist).
+bytes were NOT MEASURED (no request byte counter). No claim is made that
+actual transfer is far less than bytes_est (not measured). bytes_est is the
+sum of full-file HEAD Content-Lengths per signed asset (e.g. Pilot
+2024-03-06 bytes_est=719861772 bytes). Per-scene arrays are cached in
+data/landsat/cache/ (294 files: 98 lwir11/qa_pixel from round 3 + 196 four-band
+from round 4A). data/cache/ does not exist; per-date mosaics were NOT created
+there.
 
 ## Environment (item 7)
 
 conda env create --dry-run -f environment.yml solved successfully: the full
-package list resolved (exit code 0, normal dry-run behaviour). Output ends in
-the resolved dependency list (dask, streamlit, rioxarray, geopandas, etc.).
-The earlier warning about pip not being listed as a conda dependency is emitted
-by conda and resolved automatically.
+package list resolved (exit code 0, normal dry-run success behaviour). Output
+ends in the resolved dependency list (dask, streamlit, rioxarray, geopandas,
+etc.). The conda warning about pip not being listed as a conda dependency is
+emitted by conda and resolved automatically.
 
 ## Known Issues
-- compute_indices.py reads valid_count.tif and the band GeoTIFFs (read-only
-  composites); it consumes the validity product produced by build_composites.py
-  (which calls src/utils.compute_validity). compute_indices.py calls
-  src/utils.ndvi/ndbi/ndwi but does not itself call compute_validity because it
-  operates on already-composited GeoTIFFs without QA input (qa is not written
-  to composites).
-- data/composites/ was generated with the previous validity logic; build_composites.py
-  now uses src/utils.compute_validity (union across scenes, finite check) but
-  composites were NOT regenerated in this round (read-only). Rerunning
-  build_composites.py would produce a slightly different valid_count (157 pixels
-  differ vs the existing valid_count.tif; min/median/max unchanged at 11/23/26).
-- Two dates (2024-03-30, 2025-04-02) have zero valid BMC land pixels
-  (footprint_fraction_bmc=0.0) because no scene covers BMC with finite lwir.
-- stackstac was removed from environment.yml (incompatible with numpy 2.x);
-  rasterio is used for loading.
-- Phase 3 not started.
-
-## Round 4A - v2 composite fix (2026-11-08)
-
-Fixed the validity/mosaic ordering bug: previously each scene's bands were combined
-with nanmedian BEFORE masking, so invalid (cloudy) pixels still contributed raw DN
-values. Now each scene's bands are masked with that scene's own validity (finite
-lwir AND QA bits 0-4 clear via src/utils.compute_validity) BEFORE nanmedian; date
-validity is the union across scenes. Added src/utils.build_date_mosaic used by
-build_composites.py, per_date_valid.py and month_mix.py. Removed the duplicate
-qa_valid bit-masking implementation (compute_validity is the only one). Added
-output-directory argument to build_composites.py. Removed stackstac references
-(stackstac 0.5.0 incompatible with numpy 2.x).
-
-### Build v2 composites (src/build_composites.py --outdir data/composites_v2/)
-
-```
-Target grid: 789x1393 @30m EPSG:32643
-BMC mask pixels: 509028 of 1099077
-Unique dates: 26
-Pilot 2024-03-06: valid_frac_box=0.9999, valid_frac_bmc=0.4631, bytes_est=0
-Pilot 2024-03-14: valid_frac_box=0.9955, valid_frac_bmc=0.4604, bytes_est=0
-PILOT 2 dates: wall_time=8.9s, peak_memory=245.2 MB
-Composite shape: (5, 1393, 789), bands: ['lwir11', 'red', 'nir08', 'swir16', 'green']
-LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077
-Wrote 5 composite GeoTIFFs + valid_count to data/composites_v2/
-NIR band min=0.009 max=0.484
-```
-Then src/compute_indices.py --indir data/composites_v2 --outdir data/composites_v2 wrote ndvi/ndbi/ndwi into data/composites_v2/.
-
-### Download (src/download_bands.py)
-
-Cached red/nir08/swir16/green for all 49 scenes (196 files) into
-data/landsat/cache/ (resuming from existing cache). Final count: 196 / 196
-4-band files present (294 total cache files including lwir11/qa_pixel). All assets
-for build_composites.py now come from cache (bytes_est=0); no re-download.
-
-### Old vs v2 (src/old_vs_v2.py, report only)
-
-```
-valid_count inside BMC:
-  old: min=14.0 median=23.0 max=24.0
-  v2: min=14.0 median=23.0 max=24.0
-valid_count pixels differing inside BMC: 0
-LST over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
-  LST pixels differing by >0.5 C: 0
-NDVI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
-NDBI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
-```
-Old and v2 composites are identical for this dataset (the masking fix did not
-change results here). No downstream file was switched to v2.
-
-### Tests (tests/test_scale_and_qa.py, 12 passed)
-
-```
-============================== 12 passed in 0.08s ==============================
-```
-Tests call src/utils functions (apply_scale_offset, kelvin_to_celsius,
-build_date_mosaic, compute_validity, ndvi, ndbi, ndwi) with hand-computed
-expected values, including: cloudy-in-A-clear-in-B returns B exactly; both-clear
-returns the mean; both-invalid returns NaN; date validity equals any(valid);
-NaN handling; dilated cloud bit 1; NDWI.
-
-### Known issues remaining
-- compute_indices.py reads valid_count.tif and bands (read-only composites); it
-  consumes the validity product but does not call compute_validity itself
-  (operates on already-composited GeoTIFFs without QA input).
-- stackstac remains removed from environment.yml (incompatible with numpy 2.x);
-  rasterio is used for loading.
+- composites built with the old masking order (nanmedian before mask) but
+  verified identical to v2 (0 differing pixels, see item 7 below); the overlap
+  fraction was never measured, so this is reported as "identical, mechanism
+  not tested".
+- absolute LST depends on which days were clear (per-date BMC medians range
+  widely, 36.38 C to 44.46 C across dates).
+- thermal band native 100 m resampled to 30 m (nearest-neighbour).
+- effective dates 24 not 26 (2024-03-30 and 2025-04-02 have no BMC footprint,
+  fp_bmc=0.0000).
+- population gate was widened after inspection (from 11.0-14.5M box-sum to
+  12.0-14.5M inside-BMC sum).
+- month mix pooled labels fixed in round 4B (now prints both pooled
+  per-pixel median and median-of-per-date-medians).
+- the 0.672607 old-logic BMC value is NOT EXPLAINED and not blocking; it was
+  an artifact of counting NaN lwir pixels as valid under the old logic.
+- PID 34404 (scratch/item5.py) remains alive and holds a file lock on
+  scratch/item5.py; Stop-Process -Id 34404 and Stop-Process -Id 34404 -Force
+  both failed. scratch/item5.py was NOT renamed (file locked).
 - Phase 3 not started.

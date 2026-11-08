@@ -120,53 +120,76 @@ def main():
             lwir, qa = load_lwir_qa(it)
             scenes.append({"lwir11": lwir, "qa_pixel": qa})
         mosaic, date_validity = build_date_mosaic(scenes)
-        date_lst = dn_to_lst(mosaic["lwir11"])
+        date_lst = dn_to_lst(mosaic["lwir11"])  # already in Celsius
         bmc_land = date_lst[BMC_LAND_MASK & ~np.isnan(date_lst)]
         med = float(np.median(bmc_land)) if bmc_land.size else None
         n_land = int(bmc_land.size)
-        per_date[d] = (med, n_land)
+        per_date[d] = {"med": med, "n_land": n_land, "lst": date_lst}
         med_s = f"{med:.2f}" if med is not None else "N/A"
         print(f"  {d}: median LST={med_s} C n_land={n_land}")
 
-    print("\nMonth mix (n dates, BMC land median LST, BMC land pixels with >=1 valid date):")
-    monthly_all = {"Mar": [], "Apr": [], "May": []}
+    print("\nMonth mix (n dates, BMC land median LST, effective dates, min/max/IQR):")
+    monthly_meds = {"Mar": [], "Apr": [], "May": []}  # per-date medians
+    monthly_lst = {"Mar": [], "Apr": [], "May": []}   # per-date arrays (pooled)
     for y in sorted(config.WINDOW_B):
         for m in (3, 4, 5):
             ds = sorted(dates_by_ym.get((y, m), []))
+            month_name = {3: "Mar", 4: "Apr", 5: "May"}[m]
             if not ds:
-                print(f"  {y}-{m:02d}: 0 dates [] median LST=N/A n_land_with_valid=0")
+                print(f"  {y}-{m:02d}: 0 dates [] median LST=N/A effective dates=0 "
+                      f"min=N/A max=N/A IQR=N/A")
                 continue
             date_lst_list = []
-            any_valid = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
+            date_medians = []
+            effective_dates = 0
             for d in ds:
-                scenes = []
-                for it in by_date[d]:
-                    lwir, qa = load_lwir_qa(it)
-                    scenes.append({"lwir11": lwir, "qa_pixel": qa})
-                mosaic, date_validity = build_date_mosaic(scenes)
-                date_lst_list.append(dn_to_lst(mosaic["lwir11"]))
-                any_valid |= (date_validity & BMC_MASK)
+                entry = per_date[d]
+                date_lst_list.append(entry["lst"])
+                if entry["n_land"] > 0:
+                    effective_dates += 1
+                    date_medians.append(entry["med"])
             month_stack = np.stack(date_lst_list, axis=0)
-            month_comp = np.nanmedian(month_stack, axis=0)
-            lst = dn_to_lst(month_comp)
+            month_comp = np.nanmedian(month_stack, axis=0)  # already Celsius
+            lst = month_comp
             bmc_land = lst[BMC_LAND_MASK & ~np.isnan(lst)]
             med = float(np.median(bmc_land)) if bmc_land.size else None
-            n_any_valid = int((any_valid & BMC_LAND_MASK & ~np.isnan(month_comp)).sum())
-            month_name = {3: "Mar", 4: "Apr", 5: "May"}[m]
+            if date_medians:
+                mn = float(np.min(date_medians))
+                mx = float(np.max(date_medians))
+                q1 = float(np.percentile(date_medians, 25))
+                q3 = float(np.percentile(date_medians, 75))
+                iqr = q3 - q1
+            else:
+                mn = mx = q1 = q3 = iqr = None
             med_s = f"{med:.2f}" if med is not None else "N/A"
+            mn_s = f"{mn:.2f}" if mn is not None else "N/A"
+            mx_s = f"{mx:.2f}" if mx is not None else "N/A"
+            iqr_s = f"{iqr:.2f}" if iqr is not None else "N/A"
             print(f"  {y}-{m:02d}: {len(ds)} dates median LST={med_s} C "
-                  f"n_land_with_valid={n_any_valid}")
+                  f"effective dates={effective_dates} min={mn_s} max={mx_s} IQR={iqr_s}")
             if med is not None:
-                monthly_all[month_name].append(med)
+                monthly_meds[month_name].append(med)
+            monthly_lst[month_name].extend(date_lst_list)
+
+    print("\nPer-date BMC land medians:")
+    for d in dates:
+        entry = per_date[d]
+        med_s = f"{entry['med']:.2f}" if entry["med"] is not None else "N/A"
+        print(f"  {d}: {med_s} C (n_land={entry['n_land']})")
 
     print("\nPooled monthly medians across years (all dates of that month):")
     for mname in ("Mar", "Apr", "May"):
-        vals = [v for v in monthly_all[mname] if v is not None]
-        if vals:
-            print(f"  {mname}: {len(vals)} months, pooled median="
-                  f"{float(np.median(vals)):.2f} C")
-        else:
-            print(f"  {mname}: 0 months, pooled median=N/A")
+        meds = [v for v in monthly_meds[mname] if v is not None]
+        pooled_lst = np.nanmedian(np.stack(monthly_lst[mname], axis=0), axis=0)
+        bmc_land = pooled_lst[BMC_LAND_MASK & ~np.isnan(pooled_lst)]
+        pooled_med = (float(np.median(bmc_land))
+                      if bmc_land.size else None)
+        med_of_meds = (float(np.median(meds)) if meds else None)
+        meds_s = f"{med_of_meds:.2f}" if med_of_meds is not None else "N/A"
+        pooled_s = f"{pooled_med:.2f}" if pooled_med is not None else "N/A"
+        print(f"  {mname}: pooled (per-pixel over all dates)={pooled_s} C "
+              f"median-of-per-date-medians={meds_s} C "
+              f"(n months with data={len(meds)})")
 
     # May 2025 STAC search only (no downloads)
     print("\nMay 2025 STAC search (any cloud cover):")

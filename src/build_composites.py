@@ -152,8 +152,9 @@ def load_date(date, items, outdir=None):
         s = so[bname]["scale"]; o = so[bname]["offset"]
         out[bname] = mosaic[bname] * s + o
     valid_frac = float(np.mean(date_validity))
-    valid_frac_bmc = (float(np.mean(date_validity & BMC_MASK))
-                      if BMC_MASK.any() else float("nan"))
+    bmc_count = int(BMC_MASK.sum())
+    valid_frac_bmc = (float(np.sum(date_validity & BMC_MASK) / bmc_count)
+                      if bmc_count else float("nan"))
     arr = np.stack([out[b] for b in band_names], axis=0)  # (band, y, x)
     return arr, band_names, valid_frac, valid_frac_bmc, bytes_est
 
