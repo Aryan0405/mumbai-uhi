@@ -29,6 +29,7 @@ import rasterio
 from rasterio.features import rasterize as rio_rasterize
 import geopandas as gpd
 from shapely.geometry import mapping as shp_mapping
+from scipy import ndimage
 
 import config
 from utils import build_date_mosaic, write_log
@@ -102,6 +103,34 @@ def jaccard(a, b):
     inter = len(a & b)
     uni = len(a | b)
     return inter / uni if uni > 0 else float("nan")
+
+
+def top_n(cell_ids, values, n):
+    """Top-n cell ids by value desc, ties broken by cell_id ascending."""
+    m = ~np.isnan(values)
+    ids = cell_ids[m]
+    vals = values[m]
+    order = np.lexsort((ids, -vals))
+    return set(ids[order[:n]].tolist())
+
+
+def cluster_stats(cell_ids, n_cols=48):
+    """Connected components with 8-neighbour adjacency on the row/col grid.
+
+    row = cell_id // n_cols, col = cell_id % n_cols. Returns
+    (num_components, size_of_largest_component).
+    """
+    n_rows = int(np.ceil((cell_ids.max() + 1) / n_cols)) if cell_ids.size else 0
+    grid = np.zeros((n_rows, n_cols), dtype=bool)
+    rows = cell_ids // n_cols
+    cols = cell_ids % n_cols
+    grid[rows, cols] = True
+    structure = np.ones((3, 3), dtype=int)
+    labeled, num_components = ndimage.label(grid, structure=structure)
+    if num_components == 0:
+        return (0, 0)
+    sizes = np.bincount(labeled.ravel())[1:]
+    return (int(num_components), int(sizes.max()))
 
 
 def main():
@@ -299,6 +328,69 @@ def main():
     log("Top-20 by all-date lst_mean (CSV):", sorted(t20_lst))
     log("Jaccard(top20 March, top20 lst_mean):", jaccard(t20_march, t20_lst))
     log("Jaccard(top20 AprMay, top20 lst_mean):", jaccard(t20_aprmay, t20_lst))
+
+    # --- Top-decile sets: top 180 cells, ties broken by cell_id ascending.
+    n_decile = 180
+    t180_march = top_n(ids_ok, march_ok, n_decile)
+    t180_aprmay = top_n(ids_ok, aprmay_ok, n_decile)
+    t180_lst = top_n(ids2, lst2, n_decile)
+    log(f"Top-{n_decile} March cells:", sorted(t180_march))
+    log(f"Top-{n_decile} AprMay cells:", sorted(t180_aprmay))
+    log(f"Top-{n_decile} by all-date lst_mean (CSV):", sorted(t180_lst))
+    log(f"Jaccard(top{n_decile} March, top{n_decile} AprMay):",
+        jaccard(t180_march, t180_aprmay))
+    log(f"Jaccard(top{n_decile} March, top{n_decile} lst_mean):",
+        jaccard(t180_march, t180_lst))
+    log(f"Jaccard(top{n_decile} AprMay, top{n_decile} lst_mean):",
+        jaccard(t180_aprmay, t180_lst))
+
+    # --- Spatial clustering: 8-neighbour components on the 84 x 48 grid.
+    for label, cell_set in [
+        ("top20 March", t20_march),
+        ("top20 AprMay", t20_aprmay),
+        ("top20 lst_mean", t20_lst),
+        (f"top{n_decile} March", t180_march),
+        (f"top{n_decile} AprMay", t180_aprmay),
+        (f"top{n_decile} lst_mean", t180_lst),
+    ]:
+        cell_set_ids = np.array(sorted(cell_set), dtype=np.int64)
+        n_comp, largest = cluster_stats(cell_set_ids, n_cols=48)
+        log(f"Clustering {label}: num_components={n_comp} "
+            f"largest_component_size={largest}")
+
+    # --- Check previously logged values are unchanged; STOP on any difference.
+    rho_ma_expected = 0.9579299465605265
+    j_ma_expected = 0.2903225806451613
+    j_ml_expected = 0.42857142857142855
+    j_al_expected = 0.7391304347826086
+    log("Previously logged value checks (old vs new):")
+    log(f"  Spearman(March, AprMay): old={rho_ma_expected} new={rho_ma}")
+    log(f"  Jaccard(top20 March, top20 AprMay): old={j_ma_expected} new="
+        f"{jaccard(t20_march, t20_aprmay)}")
+    log(f"  Jaccard(top20 March, top20 lst_mean): old={j_ml_expected} new="
+        f"{jaccard(t20_march, t20_lst)}")
+    log(f"  Jaccard(top20 AprMay, top20 lst_mean): old={j_al_expected} new="
+        f"{jaccard(t20_aprmay, t20_lst)}")
+    if abs(rho_ma - rho_ma_expected) > 1e-12:
+        log("STOP: Spearman(March, AprMay) changed.")
+        write_log(log_path, "\n".join(lines) + "\n")
+        print("\n".join(lines))
+        raise SystemExit(1)
+    if abs(jaccard(t20_march, t20_aprmay) - j_ma_expected) > 1e-12:
+        log("STOP: Jaccard(top20 March, top20 AprMay) changed.")
+        write_log(log_path, "\n".join(lines) + "\n")
+        print("\n".join(lines))
+        raise SystemExit(1)
+    if abs(jaccard(t20_march, t20_lst) - j_ml_expected) > 1e-12:
+        log("STOP: Jaccard(top20 March, top20 lst_mean) changed.")
+        write_log(log_path, "\n".join(lines) + "\n")
+        print("\n".join(lines))
+        raise SystemExit(1)
+    if abs(jaccard(t20_aprmay, t20_lst) - j_al_expected) > 1e-12:
+        log("STOP: Jaccard(top20 AprMay, top20 lst_mean) changed.")
+        write_log(log_path, "\n".join(lines) + "\n")
+        print("\n".join(lines))
+        raise SystemExit(1)
 
     # --- March share of valid dates per pixel, then cell median.
     denom = vc_march + vc_april + vc_may

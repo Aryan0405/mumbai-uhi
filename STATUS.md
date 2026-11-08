@@ -1,8 +1,9 @@
-# STATUS.md - Phase 2 (DATA)
+# STATUS.md - Phase 3A close-out
 
-Run date: 2026-11-08. Conda env: uhi. Command prefix: conda run -n uhi.
+Generation time: 2026-11-08T18:24:10.710908 (timestamp taken from datetime at generation time, not typed by hand).
+Conda env: uhi. Command prefix: conda run -n uhi.
 
-## 2.1 Search - landsat-c2-l2, Window B, L8+L9, cloud < 10 percent
+## Search (copied from an earlier run, not regenerated this round.)
 Verbatim raw output (src/search_landsat.py):
 ```
 Window B 2024 [2024-03-01 to 2024-05-31]: 19 scenes
@@ -13,7 +14,7 @@ Total scene entries across Window B: 49
 Unique scene IDs: 49
 Unique acquisition dates: 26
 
-Scenes per month per year:
+Scenes per month per year: (copied from an earlier run, not regenerated this round.)
   2024-03: 7
   2024-04: 6
   2024-05: 6
@@ -27,404 +28,722 @@ Scenes per month per year:
 Distinct WRS-2 (path,row) tiles: [('148', '046'), ('148', '047')]
 Box spans more than one tile: True
 ```
-Result: 49 unique scenes (all landsat-8/9), 26 unique dates, 2 WRS-2 tiles,
-box spans more than one tile.
+Result: 49 unique scenes (all landsat-8/9), 26 unique dates, 2 WRS-2 tiles, box spans more than one tile.
 
-## 2.2 Load - rasterio per batch, sign each batch
-stackstac 0.5.0 is incompatible with the env's numpy 2.x (np.can_cast rejects
-floats), so loading uses rasterio directly with per-batch signing
-(planetary_computer.sign per date batch), reprojecting each asset to
-EPSG:32643 at 30 m over the box grid (789 x 1393 px). Validity uses the
-shared function src/utils.compute_validity: finite(lwir) AND QA fill bit 0
-clear AND dilated cloud bit 1 clear AND cirrus bit 2 clear AND cloud bit 3
-clear AND shadow bit 4 clear. Date-level mask is the UNION of per-scene
-validity.
+## Load (copied from an earlier run, not regenerated this round.)
+stackstac 0.5.0 is incompatible with the env's numpy 2.x (np.can_cast rejects floats), so loading uses rasterio directly with per-batch signing (planetary_computer.sign per date batch), reprojecting each asset to EPSG:32643 at 30 m over the box grid (789 x 1393 px). Validity uses the shared function src/utils.compute_validity: finite(lwir) AND QA fill bit 0 clear AND dilated cloud bit 1 clear AND cirrus bit 2 clear AND cloud bit 3 clear AND shadow bit 4 clear. Date-level mask is the UNION of per-scene validity.
 
-## 2.3 Mosaic - two WRS-2 rows (148/046, 148/047) per date mosaicked via
-nanmedian before compositing.
+## Mosaic (copied from an earlier run, not regenerated this round.)
+two WRS-2 rows (148/046, 148/047) per date mosaicked via nanmedian before compositing.
 
-## 2.4 Mask - fill bit 0, dilated cloud bit 1, cirrus bit 2, cloud bit 3 and
-cloud shadow bit 4 from QA_PIXEL, via src/utils.compute_validity.
+## Mask (copied from an earlier run, not regenerated this round.)
+fill bit 0, dilated cloud bit 1, cirrus bit 2, cloud bit 3 and cloud shadow bit 4 from QA_PIXEL, via src/utils.compute_validity.
 
-## 2.5 Indices + median composite - LST, NDVI, NDBI, NDWI
-Per-pixel median composite across 26 dates. Output GeoTIFFs in EPSG:32643 at
-30 m to data/composites/:
+## Indices + median composite - LST, NDVI, NDBI, NDWI (copied from an earlier run, not regenerated this round.)
+Per-pixel median composite across 26 dates. Output GeoTIFFs in EPSG:32643 at 30 m to data/composites/:
 ```
 lwir11.tif, red.tif, nir08.tif, swir16.tif, green.tif, valid_count.tif
 ndvi.tif, ndbi.tif, ndwi.tif
 ```
-compute_indices output block was not produced this round: output of the
-original run, not rerun.
-```
-NDVI: min=-0.5757 max=0.8222 in [-1,1]: True
-LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077
-BMC mask pixels: 509028 of 1099077
-Valid-count (box): min=11.0 5th=20.0 25th=21.0 50th=23.0 75th=23.0 max=26.0
-Valid-count (inside BMC): min=14.0 median=23.0 max=24.0
-Pixels below 3 valid obs: box=0 (0.00%), BMC=0 (0.00%)
-Valid-obs median built_up: 23.0 (n=16384, window rows 742:870 cols 224:352)
-Valid-obs median park: 22.0 (n=16384, window rows 117:245 cols 442:570)
+LST percentiles: copied from an earlier run, not regenerated this round.
+Window medians: copied from an earlier run, not regenerated this round.
 
-## 2.6 Per-date table
-Written to logs/per_date_valid_fraction.txt (verbatim below). Columns:
-date, valid_fraction_box, valid_fraction_bmc, bmc_pixel_count,
-footprint_fraction_bmc. Reuses data/landsat/cache/ (no re-download).
+## Per-date table
+Written to logs/per_date_valid_fraction.txt (verbatim below). Columns: date, valid_fraction_box, valid_fraction_bmc, bmc_pixel_count, footprint_fraction_bmc. Reuses data/landsat/cache/ (no re-download).
 ```
-date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
-2024-03-06 0.999934 0.999992 509028 1.000000
-2024-03-14 0.995480 0.994097 509028 1.000000
-2024-03-22 0.999488 0.999929 509028 1.000000
-2024-03-30 0.006731 0.000000 509028 0.000000
-2024-04-07 0.988418 0.999967 509028 1.000000
-2024-04-15 0.999993 1.000000 509028 1.000000
-2024-04-23 0.629222 0.776258 509028 1.000000
-2024-05-01 0.997374 1.000000 509028 1.000000
-2024-05-09 0.841625 0.872671 509028 1.000000
-2024-05-17 0.942639 0.997191 509028 1.000000
-2025-03-01 0.995319 0.995961 509028 1.000000
-2025-03-09 0.999999 1.000000 509028 1.000000
-2025-03-17 0.999967 0.999998 509028 1.000000
-2025-03-25 0.999996 1.000000 509028 1.000000
-2025-04-02 0.001507 0.000000 509028 0.000000
-2025-04-10 0.608486 0.589443 509028 1.000000
-2025-04-18 0.990364 0.988853 509028 1.000000
-2025-04-26 0.964689 0.996458 509028 1.000000
-2026-03-04 0.999959 1.000000 509028 1.000000
-2026-03-12 0.999999 1.000000 509028 1.000000
-2026-03-20 0.997545 0.996829 509028 1.000000
-2026-03-28 0.999990 1.000000 509028 1.000000
-2026-04-13 0.992830 0.988698 509028 1.000000
-2026-04-29 0.999850 0.999998 509028 1.000000
-2026-05-07 0.673044 0.775327 509028 1.000000
+date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
+2024-03-06 0.999934 0.999992 509028 1.000000
+2024-03-14 0.995480 0.994097 509028 1.000000
+2024-03-22 0.999488 0.999929 509028 1.000000
+2024-03-30 0.006731 0.000000 509028 0.000000
+2024-04-07 0.988418 0.999967 509028 1.000000
+2024-04-15 0.999993 1.000000 509028 1.000000
+2024-04-23 0.629222 0.776258 509028 1.000000
+2024-05-01 0.997374 1.000000 509028 1.000000
+2024-05-09 0.841625 0.872671 509028 1.000000
+2024-05-17 0.942639 0.997191 509028 1.000000
+2025-03-01 0.995319 0.995961 509028 1.000000
+2025-03-09 0.999999 1.000000 509028 1.000000
+2025-03-17 0.999967 0.999998 509028 1.000000
+2025-03-25 0.999996 1.000000 509028 1.000000
+2025-04-02 0.001507 0.000000 509028 0.000000
+2025-04-10 0.608486 0.589443 509028 1.000000
+2025-04-18 0.990364 0.988853 509028 1.000000
+2025-04-26 0.964689 0.996458 509028 1.000000
+2026-03-04 0.999959 1.000000 509028 1.000000
+2026-03-12 0.999999 1.000000 509028 1.000000
+2026-03-20 0.997545 0.996829 509028 1.000000
+2026-03-28 0.999990 1.000000 509028 1.000000
+2026-04-13 0.992830 0.988698 509028 1.000000
+2026-04-29 0.999850 0.999998 509028 1.000000
+2026-05-07 0.673044 0.775327 509028 1.000000
 2026-05-31 0.684853 0.673287 509028 1.000000
 ```
 
-## 2.8 Checks (real numbers)
+## Checks (real numbers)
 NDVI within [-1, 1]: True (composite min=-0.5757, max=0.8222).
-LST sanity rule (provisional): 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C,
-count_above_50C=1262, valid=1099077.
-Median composite LST: built-up window 40.09 C, park window 37.43 C (park
-cooler). Reported only; Phase 3 owns the sanity check.
-BMC-land LST percentiles (land only, NDWI<=0): 0.1th=31.51 C, 1st=32.39 C,
-50th=39.83 C, 99th=48.00 C, 99.9th=49.99 C, max=53.04 C (n=494795).
+LST sanity rule (provisional): 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077.
+Median composite LST: built-up window 40.09 C, park window 37.43 C (park cooler). Reported only; Phase 3 owns the sanity check.
+BMC-land LST percentiles (land only, NDWI<=0): 0.1th=31.51 C, 1st=32.39 C, 50th=39.83 C, 99th=48.00 C, 99.9th=49.99 C, max=53.04 C (n=494795).
 
-## 2.9 Population (WorldPop India 2020 constrained)
-Source: data.worldpop.org,
-.../2020/BSGM/IND/ind_ppp_2020_constrained.tif.
-HEAD: HTTP 200, Content-Length=531062384 bytes. Server does not support ranged
-reads; full file downloaded once to data/population/raw/ and KEPT (not deleted).
+## Population (WorldPop India 2020 constrained)
+Source: data.worldpop.org, copied from an earlier run, not regenerated this round.
 Crop to box via rasterio window read; nodata (-99999) masked before summing.
 
-Revised rule (set after inspection of the box): WorldPop sum INSIDE the
-dissolved BMC polygon must be 12.0-14.5 million. Measured inside BMC:
-13,661,494 (PASS). Reference points: Census 2011 12,442,373; MCGM mid-2023
-13,014,390 (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
-Pixels assigned to BMC if centre point falls in the dissolved polygon
-(centre-point rule, not any-touch). 90.9% of box-crop population is inside
-BMC, 9.1% outside.
+Revised rule (set after inspection of the box): WorldPop sum INSIDE the dissolved BMC polygon must be 12.0-14.5 million. Measured inside BMC: 13,661,494 (PASS). Reference points: Census 2011 12,442,373; MCGM mid-2023 13,014,390 (https://mcgm.gov.in/irj/portal/anonymous/qlCivicDemographics).
+Pixels assigned to BMC if centre point falls in the dissolved polygon (centre-point rule, not any-touch). 90.9% of box-crop population is inside BMC, 9.1% outside.
 
-## 2.10 Tests
+## Tests
 tests/test_scale_and_qa.py: 16 passed (verbatim below).
-Tests call src/utils functions (apply_scale_offset, kelvin_to_celsius,
-build_date_mosaic, compute_validity, ndvi, ndbi, ndwi) with hand-computed
-expected values, including: cloudy-in-A-clear-in-B returns B exactly;
-both-clear returns the mean; both-invalid returns NaN; date validity equals
-any(valid); NaN handling; dilated cloud bit 1; NDWI.
+Tests call src/utils functions (apply_scale_offset, kelvin_to_celsius, build_date_mosaic, compute_validity, ndvi, ndbi, ndwi) with hand-computed expected values, including: cloudy-in-A-clear-in-B returns B exactly; both-clear returns the mean; both-invalid returns NaN; date validity equals any(valid); NaN handling; dilated cloud bit 1; NDWI.
 ```
-============================= test session starts =============================
-platform win32 -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\Aryan\anaconda3\envs\uhi\python.exe
-cachedir: .pytest_cache
-rootdir: C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi
-plugins: anyio-4.16.0
-collecting ... collected 16 items
-
-tests/test_scale_and_qa.py::test_scale_offset_math PASSED                [  6%]
-tests/test_scale_and_qa.py::test_lst_celsius_range PASSED                [ 12%]
-tests/test_scale_and_qa.py::test_ndvi_range PASSED                       [ 18%]
-tests/test_scale_and_qa.py::test_ndvi_hand_computed PASSED               [ 25%]
-tests/test_scale_and_qa.py::test_ndbi_formula PASSED                     [ 31%]
-tests/test_scale_and_qa.py::test_ndbi_hand_computed PASSED               [ 37%]
-tests/test_scale_and_qa.py::test_ndwi_hand_computed PASSED               [ 43%]
-tests/test_scale_and_qa.py::test_qa_bit_masking_compute_validity PASSED  [ 50%]
-tests/test_scale_and_qa.py::test_dilated_cloud_bit_1_compute_validity PASSED [ 56%]
-tests/test_scale_and_qa.py::test_fill_bit_masking_compute_validity PASSED [ 62%]
-tests/test_scale_and_qa.py::test_nan_handling PASSED                     [ 68%]
-tests/test_scale_and_qa.py::test_union_logic_across_two_scenes PASSED    [ 75%]
-tests/test_scale_and_qa.py::test_build_date_mosaic_cloudy_a_clear_b_returns_b PASSED [ 81%]
-tests/test_scale_and_qa.py::test_build_date_mosaic_both_clear_returns_mean PASSED [ 87%]
-tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan PASSED [ 93%]
-tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any PASSED [100%]
-
-============================== warnings summary ===============================
-tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan
-tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any
-  C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:67: RuntimeWarning: All-NaN slice encountered
-    mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= test session starts =============================
+platform win32 -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\Aryan\anaconda3\envs\uhi\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi
+plugins: anyio-4.16.0
+collecting ... collected 16 items
+
+tests/test_scale_and_qa.py::test_scale_offset_math PASSED                [  6%]
+tests/test_scale_and_qa.py::test_lst_celsius_range PASSED                [ 12%]
+tests/test_scale_and_qa.py::test_ndvi_range PASSED                       [ 18%]
+tests/test_scale_and_qa.py::test_ndvi_hand_computed PASSED               [ 25%]
+tests/test_scale_and_qa.py::test_ndbi_formula PASSED                     [ 31%]
+tests/test_scale_and_qa.py::test_ndbi_hand_computed PASSED               [ 37%]
+tests/test_scale_and_qa.py::test_ndwi_hand_computed PASSED               [ 43%]
+tests/test_scale_and_qa.py::test_qa_bit_masking_compute_validity PASSED  [ 50%]
+tests/test_scale_and_qa.py::test_dilated_cloud_bit_1_compute_validity PASSED [ 56%]
+tests/test_scale_and_qa.py::test_fill_bit_masking_compute_validity PASSED [ 62%]
+tests/test_scale_and_qa.py::test_nan_handling PASSED                     [ 68%]
+tests/test_scale_and_qa.py::test_union_logic_across_two_scenes PASSED    [ 75%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_cloudy_a_clear_b_returns_b PASSED [ 81%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_clear_returns_mean PASSED [ 87%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan PASSED [ 93%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any PASSED [100%]
+
+============================== warnings summary ===============================
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan
+tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any
+  C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:67: RuntimeWarning: All-NaN slice encountered
+    mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ======================= 16 passed, 2 warnings in 0.08s ========================
 ```
 
-## 2.11 Quicklook PNGs (masked labels)
-logs/quicklook_lst_composite.png, quicklook_ndvi.png, quicklook_ndbi.png,
-quicklook_valid_count.png, quicklook_removed_water.png.
-Regenerated with aspect="equal", figure sized to raster extent, BMC outline
-overlaid, colorbar from data min to max (valid_count 12 to 26; LST 15 to 50).
-Both quicklook_valid_count.png and quicklook_lst_composite.png verified:
-axes fill the figure (no large blank margin), BMC outline visible as a white
-line, colorbar from data min to max.
+## Quicklook PNGs (masked labels)
+logs/quicklook_lst_composite.png, quicklook_ndvi.png, quicklook_ndbi.png, quicklook_valid_count.png, quicklook_removed_water.png.
+Colorbar claim: NOT MEASURABLE (no log states the colorbar range used for the quicklooks; claim deleted).
 
 ## Bytes
-4,396,436 bytes is the size of one stored float32 array
-(789 x 1393 x 4 bytes plus .npy header), NOT transferred bytes. Transferred
-bytes were NOT MEASURED (no request byte counter). No claim is made that
-actual transfer is far less than bytes_est (not measured). bytes_est is the
-sum of full-file HEAD Content-Lengths per signed asset (e.g. Pilot
-2024-03-06 bytes_est=719861772 bytes). Per-scene arrays are cached in
-data/landsat/cache/ (294 files: 98 lwir11/qa_pixel from round 3 + 196 four-band
-from round 4A). data/cache/ does not exist; per-date mosaics were NOT created
-there.
+Bytes: copied from an earlier run, not regenerated this round.
+Transferred bytes were NOT MEASURED (no request byte counter). No claim is made that actual transfer is far less than bytes_est (not measured). bytes_est is the sum of full-file HEAD Content-Lengths per signed asset. Per-scene arrays are cached in data/landsat/cache/. data/cache/ does not exist; per-date mosaics were NOT created there.
 
 ## Environment
-conda env create --dry-run -f environment.yml solved successfully: the full
-package list resolved (exit code 0, normal dry-run success behaviour). Output
-ends in the resolved dependency list (dask, streamlit, rioxarray, geopandas,
-etc.). The conda warning about pip not being listed as a conda dependency is
-emitted by conda and resolved automatically.
+Environment: copied from an earlier run, not regenerated this round.
+conda env create --dry-run -f environment.yml solved successfully: the full package list resolved (exit code 0, normal dry-run success behaviour). Output ends in the resolved dependency list (dask, streamlit, rioxarray, geopandas, etc.). The conda warning about pip not being listed as a conda dependency is emitted by conda and resolved automatically.
 
 ## Known Issues
-- Absolute LST depends on which days were clear (per-date BMC medians range
-  widely, 36.38 C to 44.46 C across dates).
-- Effective dates 24 not 26 (2024-03-30 and 2025-04-02 have no BMC footprint,
-  fp_bmc=0.0000).
-- Population gate was widened after inspection (from 11.0-14.5M box-sum to
-  12.0-14.5M inside-BMC sum).
-- Five dates cover only part of BMC (valid fractions 0.59 to 0.87 inside BMC),
-  so different parts of the city rest on different dates.
-- valid-count versus LST check done at 30 m only; the 500 m check is pending
-  in Phase 3.
+- Absolute LST depends on which days were clear (per-date BMC medians range widely, 36.38 C to 44.46 C across dates).
+- Effective dates 24 not 26 (2024-03-30 and 2025-04-02 have no BMC footprint, fp_bmc=0.0000).
+- Population gate was widened after inspection (from 11.0-14.5M box-sum to 12.0-14.5M inside-BMC sum).
+- Five dates cover only part of BMC (valid fractions 0.59 to 0.87 inside BMC), so different parts of the city rest on different dates.
+- valid-count versus LST check done at 30 m only; the 500 m check is pending in Phase 3.
 - The 0.672607 old-logic value NOT EXPLAINED and not blocking.
-- The USGS Level 2 thermal band is resampled from native 100 m to 30 m by cubic
-  convolution; this pipeline then reprojected the 30 m product onto the box grid
-  with nearest-neighbour.
-- scratch scripts deleted or disabled; no project processes running.
-- composites built with the old masking order (nanmedian before mask) but
-  verified identical to v2 (0 differing pixels, see below); the overlap
-  fraction was never measured, so this is reported as "identical, mechanism not
-  tested".
+- The USGS Level 2 thermal band is resampled from native 100 m to 30 m by cubic convolution; this pipeline then reprojected the 30 m product onto the box grid with nearest-neighbour.
+- composites built with the old masking order (nanmedian before mask) but verified identical to v2 (0 differing pixels, see below); the overlap fraction was never measured, so this is reported as "identical, mechanism not tested".
+- the composite is March heavy (see the month mix table); do not call it peak heat.
+- thermal band native resolution is 100 m and the 500 m cell is the unit of analysis.
+- March and April to May cell LST differ and the top-20 hotspot sets are spatially clustered and unstable between months (see the Phase 3A seam log).
+- population is WorldPop 2020 against 2024 to 2026 imagery.
+- the density denominator is undecided (see the density audit log).
+- the earlier pixel-level seam coefficients from the superseded script must not be quoted.
 
-## Round 4C - new results
-
-### Per-date validity (logs/round4b_per_date_valid.txt)
+## Old versus v2
+identical inside BMC; an earlier box-wide comparison found 157 differing valid_count pixels; box-wide LST and NDVI difference not measured.
 ```
-date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
-2024-03-06 0.999934 0.999992 509028 1.000000
-2024-03-14 0.995480 0.994097 509028 1.000000
-2024-03-22 0.999488 0.999929 509028 1.000000
-2024-03-30 0.006731 0.000000 509028 0.000000
-2024-04-07 0.988418 0.999967 509028 1.000000
-2024-04-15 0.999993 1.000000 509028 1.000000
-2024-04-23 0.629222 0.776258 509028 1.000000
-2024-05-01 0.997374 1.000000 509028 1.000000
-2024-05-09 0.841625 0.872671 509028 1.000000
-2024-05-17 0.942639 0.997191 509028 1.000000
-2025-03-01 0.995319 0.995961 509028 1.000000
-2025-03-09 0.999999 1.000000 509028 1.000000
-2025-03-17 0.999967 0.999998 509028 1.000000
-2025-03-25 0.999996 1.000000 509028 1.000000
-2025-04-02 0.001507 0.000000 509028 0.000000
-2025-04-10 0.608486 0.589443 509028 1.000000
-2025-04-18 0.990364 0.988853 509028 1.000000
-2025-04-26 0.964689 0.996458 509028 1.000000
-2026-03-04 0.999959 1.000000 509028 1.000000
-2026-03-12 0.999999 1.000000 509028 1.000000
-2026-03-20 0.997545 0.996829 509028 1.000000
-2026-03-28 0.999990 1.000000 509028 1.000000
-2026-04-13 0.992830 0.988698 509028 1.000000
-2026-04-29 0.999850 0.999998 509028 1.000000
-2026-05-07 0.673044 0.775327 509028 1.000000
-2026-05-31 0.684853 0.673287 509028 1.000000
-```
-
-### Month mix and per-date medians (logs/round4c_month_mix.txt)
-```
-Per-date BMC land median LST (all 26 dates):
-  2024-03-06: median LST=36.56 C n_land=494793
-  2024-03-14: median LST=36.38 C n_land=491819
-  2024-03-22: median LST=38.13 C n_land=494759
-  2024-03-30: median LST=N/A C n_land=0
-  2024-04-07: median LST=42.73 C n_land=494780
-  2024-04-15: median LST=44.46 C n_land=494795
-  2024-04-23: median LST=41.47 C n_land=390945
-  2024-05-01: median LST=43.22 C n_land=494795
-  2024-05-09: median LST=39.13 C n_land=434369
-  2024-05-17: median LST=38.49 C n_land=494025
-  2025-03-01: median LST=37.06 C n_land=492892
-  2025-03-09: median LST=39.88 C n_land=494795
-  2025-03-17: median LST=39.95 C n_land=494794
-  2025-03-25: median LST=39.42 C n_land=494795
-  2025-04-02: median LST=N/A C n_land=0
-  2025-04-10: median LST=36.67 C n_land=292711
-  2025-04-18: median LST=39.62 C n_land=489508
-  2025-04-26: median LST=42.17 C n_land=493341
-  2026-03-04: median LST=40.43 C n_land=494795
-  2026-03-12: median LST=38.44 C n_land=494795
-  2026-03-20: median LST=39.02 C n_land=493361
-  2026-03-28: median LST=40.18 C n_land=494795
-  2026-04-13: median LST=40.54 C n_land=489166
-  2026-04-29: median LST=41.69 C n_land=494794
-  2026-05-07: median LST=40.95 C n_land=384977
-  2026-05-31: median LST=39.96 C n_land=332879
-
-Month mix (n dates, BMC land median LST, effective dates, min/max/IQR):
-  2024-03: 4 dates median LST=36.86 C effective dates=3 min=36.38 max=38.13 IQR=0.88
-  2024-04: 3 dates median LST=42.86 C effective dates=3 min=41.47 max=44.46 IQR=1.50
-  2024-05: 3 dates median LST=39.64 C effective dates=3 min=38.49 max=43.22 IQR=2.37
-  2025-03: 4 dates median LST=39.47 C effective dates=4 min=37.06 max=39.95 IQR=1.06
-  2025-04: 4 dates median LST=40.13 C effective dates=3 min=36.67 max=42.17 IQR=2.75
-  2025-05: 0 dates [] median LST=N/A effective dates=0 min=N/A max=N/A IQR=N/A
-  2026-03: 4 dates median LST=39.55 C effective dates=4 min=38.44 max=40.43 IQR=1.37
-  2026-04: 2 dates median LST=41.13 C effective dates=2 min=40.54 max=41.69 IQR=0.57
-  2026-05: 2 dates median LST=40.47 C effective dates=2 min=39.96 max=40.95 IQR=0.49
-
-Per-date BMC land medians:
-  2024-03-06: 36.56 C (n_land=494793)
-  2024-03-14: 36.38 C (n_land=491819)
-  2024-03-22: 38.13 C (n_land=494759)
-  2024-03-30: N/A C (n_land=0)
-  2024-04-07: 42.73 C (n_land=494780)
-  2024-04-15: 44.46 C (n_land=494795)
-  2024-04-23: 41.47 C (n_land=390945)
-  2024-05-01: 43.22 C (n_land=494795)
-  2024-05-09: 39.13 C (n_land=434369)
-  2024-05-17: 38.49 C (n_land=494025)
-  2025-03-01: 37.06 C (n_land=492892)
-  2025-03-09: 39.88 C (n_land=494795)
-  2025-03-17: 39.95 C (n_land=494794)
-  2025-03-25: 39.42 C (n_land=494795)
-  2025-04-02: N/A C (n_land=0)
-  2025-04-10: 36.67 C (n_land=292711)
-  2025-04-18: 39.62 C (n_land=489508)
-  2025-04-26: 42.17 C (n_land=493341)
-  2026-03-04: 40.43 C (n_land=494795)
-  2026-03-12: 38.44 C (n_land=494795)
-  2026-03-20: 39.02 C (n_land=493361)
-  2026-03-28: 40.18 C (n_land=494795)
-  2026-04-13: 40.54 C (n_land=489166)
-  2026-04-29: 41.69 C (n_land=494794)
-  2026-05-07: 40.95 C (n_land=384977)
-  2026-05-31: 39.96 C (n_land=332879)
-
-Pooled monthly medians across years (all dates of that month):
-  Mar: pooled (per-pixel over all dates)=38.92 C median-of-per-date-medians=39.47 C (n months with data=3)
-  Apr: pooled (per-pixel over all dates)=41.57 C median-of-per-date-medians=41.13 C (n months with data=3)
-  May: pooled (per-pixel over all dates)=40.06 C median-of-per-date-medians=40.06 C (n months with data=2)
-
-May 2025 STAC search (any cloud cover):
-  Without cloud filter: 8 scenes
-    LC08_L2SP_148047_20250528_02_T2 platform=landsat-8 cloud=99.93
-    LC08_L2SP_148046_20250528_02_T2 platform=landsat-8 cloud=100.0
-    LC09_L2SP_148047_20250520_02_T1 platform=landsat-9 cloud=82.61
-    LC09_L2SP_148046_20250520_02_T1 platform=landsat-9 cloud=46.9
-    LC08_L2SP_148047_20250512_02_T1 platform=landsat-8 cloud=19.16
-    LC08_L2SP_148046_20250512_02_T1 platform=landsat-8 cloud=15.57
-    LC09_L2SP_148047_20250504_02_T1 platform=landsat-9 cloud=12.44
-    LC09_L2SP_148046_20250504_02_T1 platform=landsat-9 cloud=15.06
-  With cloud < 10 percent filter: 0 scenes
-```
-
-### Old versus v2 (logs/round4c_old_vs_v2.txt)
-Result: identical, mechanism not tested (overlap fraction never measured).
-```
-valid_count inside BMC:
-  old: min=14.0 median=23.0 max=24.0
-  v2: min=14.0 median=23.0 max=24.0
-valid_count pixels differing inside BMC: 0
-LST over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
-  LST pixels differing by >0.5 C: 0
-NDVI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
+valid_count inside BMC:
+  old: min=14.0 median=23.0 max=24.0
+  v2: min=14.0 median=23.0 max=24.0
+valid_count pixels differing inside BMC: 0
+LST over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
+  LST pixels differing by >0.5 C: 0
+NDVI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
 NDBI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
 ```
 
-### Hot clusters and removed-water mask (logs/round4c_hot_pixels.txt)
+## Per-date validity (logs/round4b_per_date_valid.txt)
 ```
-NDWI histogram inside BMC (bins=-1 to 1 step 0.1, count of pixels):
-  [-1.0 to -0.9): 0
-  [-0.9 to -0.8): 0
-  [-0.8 to -0.7): 139
-  [-0.7 to -0.6): 16130
-  [-0.6 to -0.5): 67417
-  [-0.5 to -0.4): 97762
-  [-0.4 to -0.3): 128942
-  [-0.3 to -0.2): 144777
-  [-0.2 to -0.1): 34542
-  [-0.1 to -0.0): 5075
-  [-0.0 to +0.1): 4445
-  [+0.1 to +0.2): 4463
-  [+0.2 to +0.3): 4790
-  [+0.3 to +0.4): 544
-  [+0.4 to +0.5): 2
-  [+0.5 to +0.6): 0
-  [+0.6 to +0.7): 0
-  [+0.7 to +0.8): 0
-  [+0.8 to +0.9): 0
-  [+0.9 to +1.0): 0
-Water pixels (NDWI > 0) removed from BMC polygon: 14233
-BMC land median NDBI: -0.0353
-Removed water pixels with NDBI above BMC land median: 119
+date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
+2024-03-06 0.999934 0.999992 509028 1.000000
+2024-03-14 0.995480 0.994097 509028 1.000000
+2024-03-22 0.999488 0.999929 509028 1.000000
+2024-03-30 0.006731 0.000000 509028 0.000000
+2024-04-07 0.988418 0.999967 509028 1.000000
+2024-04-15 0.999993 1.000000 509028 1.000000
+2024-04-23 0.629222 0.776258 509028 1.000000
+2024-05-01 0.997374 1.000000 509028 1.000000
+2024-05-09 0.841625 0.872671 509028 1.000000
+2024-05-17 0.942639 0.997191 509028 1.000000
+2025-03-01 0.995319 0.995961 509028 1.000000
+2025-03-09 0.999999 1.000000 509028 1.000000
+2025-03-17 0.999967 0.999998 509028 1.000000
+2025-03-25 0.999996 1.000000 509028 1.000000
+2025-04-02 0.001507 0.000000 509028 0.000000
+2025-04-10 0.608486 0.589443 509028 1.000000
+2025-04-18 0.990364 0.988853 509028 1.000000
+2025-04-26 0.964689 0.996458 509028 1.000000
+2026-03-04 0.999959 1.000000 509028 1.000000
+2026-03-12 0.999999 1.000000 509028 1.000000
+2026-03-20 0.997545 0.996829 509028 1.000000
+2026-03-28 0.999990 1.000000 509028 1.000000
+2026-04-13 0.992830 0.988698 509028 1.000000
+2026-04-29 0.999850 0.999998 509028 1.000000
+2026-05-07 0.673044 0.775327 509028 1.000000
+2026-05-31 0.684853 0.673287 509028 1.000000
+```
 
-Hot clusters (LST > 50.0 C, BMC land): 15
+## Month mix and per-date medians (logs/round4c_month_mix.txt)
+```
+Per-date BMC land median LST (all 26 dates):
+  2024-03-06: median LST=36.56 C n_land=494793
+  2024-03-14: median LST=36.38 C n_land=491819
+  2024-03-22: median LST=38.13 C n_land=494759
+  2024-03-30: median LST=N/A C n_land=0
+  2024-04-07: median LST=42.73 C n_land=494780
+  2024-04-15: median LST=44.46 C n_land=494795
+  2024-04-23: median LST=41.47 C n_land=390945
+  2024-05-01: median LST=43.22 C n_land=494795
+  2024-05-09: median LST=39.13 C n_land=434369
+  2024-05-17: median LST=38.49 C n_land=494025
+  2025-03-01: median LST=37.06 C n_land=492892
+  2025-03-09: median LST=39.88 C n_land=494795
+  2025-03-17: median LST=39.95 C n_land=494794
+  2025-03-25: median LST=39.42 C n_land=494795
+  2025-04-02: median LST=N/A C n_land=0
+  2025-04-10: median LST=36.67 C n_land=292711
+  2025-04-18: median LST=39.62 C n_land=489508
+  2025-04-26: median LST=42.17 C n_land=493341
+  2026-03-04: median LST=40.43 C n_land=494795
+  2026-03-12: median LST=38.44 C n_land=494795
+  2026-03-20: median LST=39.02 C n_land=493361
+  2026-03-28: median LST=40.18 C n_land=494795
+  2026-04-13: median LST=40.54 C n_land=489166
+  2026-04-29: median LST=41.69 C n_land=494794
+  2026-05-07: median LST=40.95 C n_land=384977
+  2026-05-31: median LST=39.96 C n_land=332879
+
+Month mix (n dates, BMC land median LST, effective dates, min/max/IQR):
+  2024-03: 4 dates median LST=36.86 C effective dates=3 min=36.38 max=38.13 IQR=0.88
+  2024-04: 3 dates median LST=42.86 C effective dates=3 min=41.47 max=44.46 IQR=1.50
+  2024-05: 3 dates median LST=39.64 C effective dates=3 min=38.49 max=43.22 IQR=2.37
+  2025-03: 4 dates median LST=39.47 C effective dates=4 min=37.06 max=39.95 IQR=1.06
+  2025-04: 4 dates median LST=40.13 C effective dates=3 min=36.67 max=42.17 IQR=2.75
+  2025-05: 0 dates [] median LST=N/A effective dates=0 min=N/A max=N/A IQR=N/A
+  2026-03: 4 dates median LST=39.55 C effective dates=4 min=38.44 max=40.43 IQR=1.37
+  2026-04: 2 dates median LST=41.13 C effective dates=2 min=40.54 max=41.69 IQR=0.57
+  2026-05: 2 dates median LST=40.47 C effective dates=2 min=39.96 max=40.95 IQR=0.49
+
+Per-date BMC land medians:
+  2024-03-06: 36.56 C (n_land=494793)
+  2024-03-14: 36.38 C (n_land=491819)
+  2024-03-22: 38.13 C (n_land=494759)
+  2024-03-30: N/A C (n_land=0)
+  2024-04-07: 42.73 C (n_land=494780)
+  2024-04-15: 44.46 C (n_land=494795)
+  2024-04-23: 41.47 C (n_land=390945)
+  2024-05-01: 43.22 C (n_land=494795)
+  2024-05-09: 39.13 C (n_land=434369)
+  2024-05-17: 38.49 C (n_land=494025)
+  2025-03-01: 37.06 C (n_land=492892)
+  2025-03-09: 39.88 C (n_land=494795)
+  2025-03-17: 39.95 C (n_land=494794)
+  2025-03-25: 39.42 C (n_land=494795)
+  2025-04-02: N/A C (n_land=0)
+  2025-04-10: 36.67 C (n_land=292711)
+  2025-04-18: 39.62 C (n_land=489508)
+  2025-04-26: 42.17 C (n_land=493341)
+  2026-03-04: 40.43 C (n_land=494795)
+  2026-03-12: 38.44 C (n_land=494795)
+  2026-03-20: 39.02 C (n_land=493361)
+  2026-03-28: 40.18 C (n_land=494795)
+  2026-04-13: 40.54 C (n_land=489166)
+  2026-04-29: 41.69 C (n_land=494794)
+  2026-05-07: 40.95 C (n_land=384977)
+  2026-05-31: 39.96 C (n_land=332879)
+
+Pooled monthly medians across years (all dates of that month):
+  Mar: pooled (per-pixel over all dates)=38.92 C median-of-per-date-medians=39.47 C (n months with data=3)
+  Apr: pooled (per-pixel over all dates)=41.57 C median-of-per-date-medians=41.13 C (n months with data=3)
+  May: pooled (per-pixel over all dates)=40.06 C median-of-per-date-medians=40.06 C (n months with data=2)
+
+May 2025 STAC search (any cloud cover):
+  Without cloud filter: 8 scenes
+    LC08_L2SP_148047_20250528_02_T2 platform=landsat-8 cloud=99.93
+    LC08_L2SP_148046_20250528_02_T2 platform=landsat-8 cloud=100.0
+    LC09_L2SP_148047_20250520_02_T1 platform=landsat-9 cloud=82.61
+    LC09_L2SP_148046_20250520_02_T1 platform=landsat-9 cloud=46.9
+    LC08_L2SP_148047_20250512_02_T1 platform=landsat-8 cloud=19.16
+    LC08_L2SP_148046_20250512_02_T1 platform=landsat-8 cloud=15.57
+    LC09_L2SP_148047_20250504_02_T1 platform=landsat-9 cloud=12.44
+    LC09_L2SP_148046_20250504_02_T1 platform=landsat-9 cloud=15.06
+  With cloud < 10 percent filter: 0 scenes
+```
 
-Cluster id, pixel count, max LST, centroid lon, centroid lat, mean NDVI, mean NDBI, NDVI pct rank, NDBI pct rank
-1, 22, 53.04, 72.871499, 19.202134, 0.141, 0.070, 6.7, 88.8
-2, 63, 51.46, 72.974278, 19.171050, 0.171, 0.077, 14.2, 90.7
-3, 4, 50.16, 72.927982, 19.155900, 0.166, 0.124, 12.8, 98.0
-4, 6, 50.29, 72.853347, 19.150166, 0.178, 0.025, 16.3, 74.2
-5, 27, 51.98, 72.853653, 19.148543, 0.140, 0.030, 6.5, 76.2
-6, 47, 51.71, 72.946028, 19.126294, 0.194, 0.128, 20.8, 98.3
-7, 75, 51.56, 72.954912, 19.122599, 0.191, 0.071, 19.9, 89.0
-8, 5, 50.38, 72.920980, 19.100269, 0.144, 0.117, 7.3, 97.4
-9, 58, 52.46, 72.874839, 19.097303, 0.110, 0.053, 2.6, 84.0
-10, 18, 51.31, 72.872308, 19.094564, 0.107, 0.061, 2.3, 86.2
-11, 3, 50.07, 72.865760, 19.093947, 0.075, -0.029, 0.8, 52.5
-12, 151, 51.24, 72.928198, 19.070000, 0.166, 0.080, 12.8, 91.3
-13, 5, 50.14, 72.931329, 19.070306, 0.167, 0.081, 12.9, 91.7
-14, 1, 50.03, 72.928784, 19.068651, 0.151, 0.077, 8.9, 90.6
-15, 7, 50.29, 72.934584, 19.060587, 0.177, 0.072, 15.8, 89.5
-
-Removed-water PNG: logs\quicklook_removed_water.png
+## Hot clusters and removed-water mask (logs/round4c_hot_pixels.txt)
+```
+NDWI histogram inside BMC (bins=-1 to 1 step 0.1, count of pixels):
+  [-1.0 to -0.9): 0
+  [-0.9 to -0.8): 0
+  [-0.8 to -0.7): 139
+  [-0.7 to -0.6): 16130
+  [-0.6 to -0.5): 67417
+  [-0.5 to -0.4): 97762
+  [-0.4 to -0.3): 128942
+  [-0.3 to -0.2): 144777
+  [-0.2 to -0.1): 34542
+  [-0.1 to -0.0): 5075
+  [-0.0 to +0.1): 4445
+  [+0.1 to +0.2): 4463
+  [+0.2 to +0.3): 4790
+  [+0.3 to +0.4): 544
+  [+0.4 to +0.5): 2
+  [+0.5 to +0.6): 0
+  [+0.6 to +0.7): 0
+  [+0.7 to +0.8): 0
+  [+0.8 to +0.9): 0
+  [+0.9 to +1.0): 0
+Water pixels (NDWI > 0) removed from BMC polygon: 14233
+BMC land median NDBI: -0.0353
+Removed water pixels with NDBI above BMC land median: 119
+
+Hot clusters (LST > 50.0 C, BMC land): 15
+
+Cluster id, pixel count, max LST, centroid lon, centroid lat, mean NDVI, mean NDBI, NDVI pct rank, NDBI pct rank
+1, 22, 53.04, 72.871499, 19.202134, 0.141, 0.070, 6.7, 88.8
+2, 63, 51.46, 72.974278, 19.171050, 0.171, 0.077, 14.2, 90.7
+3, 4, 50.16, 72.927982, 19.155900, 0.166, 0.124, 12.8, 98.0
+4, 6, 50.29, 72.853347, 19.150166, 0.178, 0.025, 16.3, 74.2
+5, 27, 51.98, 72.853653, 19.148543, 0.140, 0.030, 6.5, 76.2
+6, 47, 51.71, 72.946028, 19.126294, 0.194, 0.128, 20.8, 98.3
+7, 75, 51.56, 72.954912, 19.122599, 0.191, 0.071, 19.9, 89.0
+8, 5, 50.38, 72.920980, 19.100269, 0.144, 0.117, 7.3, 97.4
+9, 58, 52.46, 72.874839, 19.097303, 0.110, 0.053, 2.6, 84.0
+10, 18, 51.31, 72.872308, 19.094564, 0.107, 0.061, 2.3, 86.2
+11, 3, 50.07, 72.865760, 19.093947, 0.075, -0.029, 0.8, 52.5
+12, 151, 51.24, 72.928198, 19.070000, 0.166, 0.080, 12.8, 91.3
+13, 5, 50.14, 72.931329, 19.070306, 0.167, 0.081, 12.9, 91.7
+14, 1, 50.03, 72.928784, 19.068651, 0.151, 0.077, 8.9, 90.6
+15, 7, 50.29, 72.934584, 19.060587, 0.177, 0.072, 15.8, 89.5
+
+Removed-water PNG: logs\quicklook_removed_water.png
 Figure size: 7 x 6 inches
 ```
 
-### Valid-count versus LST check (logs/round4c_valid_count_check.txt)
+## Valid-count versus LST check (logs/round4c_valid_count_check.txt)
 Check done at 30 m only; the 500 m check is pending in Phase 3.
 ```
-BMC land pixels (finite LST, valid_count): 494795
-
-a. Table grouped by valid_count value (BMC land):
-   valid_count   n_pixels   median_LST_C    median_NDVI    median_NDBI
-            14          1          32.28         0.0804         0.0167
-            16          4          32.94         0.1040         0.0383
-            17          6          33.19         0.0947         0.0322
-            18        757          37.39         0.4593        -0.1141
-            19       7386          38.86         0.3695        -0.0462
-            20      18391          39.50         0.3457        -0.0568
-            21      46595          39.71         0.2951        -0.0467
-            22     113317          39.91         0.2954        -0.0284
-            23     176063          39.89         0.3014        -0.0358
-            24     132275          39.83         0.3144        -0.0339
-
-b. Spearman correlation (BMC land pixels, n=494795):
-  valid_count vs LST:   rho=0.0218
-  valid_count vs NDVI:  rho=0.0368
-  valid_count vs NDBI:  rho=0.0278
-  Coefficients reported only; no statistical significance claim (30 m neighbouring pixels are spatially autocorrelated).
-
-c. Median LST by valid_count group:
-  valid_count <= 20: median LST = 39.26 C, n = 26545
-  valid_count >= 23: median LST = 39.87 C, n = 308338
-
-d. BMC land pixels with valid_count < 18: 11
-  lon range: 72.808785 to 72.907101
+BMC land pixels (finite LST, valid_count): 494795
+
+a. Table grouped by valid_count value (BMC land):
+   valid_count   n_pixels   median_LST_C    median_NDVI    median_NDBI
+            14          1          32.28         0.0804         0.0167
+            16          4          32.94         0.1040         0.0383
+            17          6          33.19         0.0947         0.0322
+            18        757          37.39         0.4593        -0.1141
+            19       7386          38.86         0.3695        -0.0462
+            20      18391          39.50         0.3457        -0.0568
+            21      46595          39.71         0.2951        -0.0467
+            22     113317          39.91         0.2954        -0.0284
+            23     176063          39.89         0.3014        -0.0358
+            24     132275          39.83         0.3144        -0.0339
+
+b. Spearman correlation (BMC land pixels, n=494795):
+  valid_count vs LST:   rho=0.0218
+  valid_count vs NDVI:  rho=0.0368
+  valid_count vs NDBI:  rho=0.0278
+  Coefficients reported only; no statistical significance claim (30 m neighbouring pixels are spatially autocorrelated).
+
+c. Median LST by valid_count group:
+  valid_count <= 20: median LST = 39.26 C, n = 26545
+  valid_count >= 23: median LST = 39.87 C, n = 308338
+
+d. BMC land pixels with valid_count < 18: 11
+  lon range: 72.808785 to 72.907101
   lat range: 18.958011 to 19.025049
 ```
+
+## Phase 3A
+
+### Grid and cell stats (logs/phase3a_cell_stats.txt)
+Cell stats (500 m grid, EPSG:32643, BMC land pixels):
+  n_rows=84, n_cols=48, total_cells=4032
+  Cells with n_bmc_px > 0 (BMC cells / in_bmc): 2005
+  Cells with n_bmc_px == 0 (outside BMC): 2027
+  Sum of n_bmc_px: 509028
+  Sum of n_land_px: 494795
+  Thermal native resolution is 100 m; 500 m cells are the unit of analysis.
+
+  n_grid_px distribution among BMC cells (value counts):
+    n_grid_px
+256    223
+272    891
+289    891
+  Max bmc_fraction among BMC cells = 1.000000 (must be <= 1.0)
+  Max bmc_area_km2 among BMC cells = 0.250000 (must be <= 0.25)
+  Max n_grid_px (full-cell count) among BMC cells = 289
+  BMC cells with n_grid_px below full-cell count = 1114
+
+  Areas: bmc_area_km2 = 0.25 * n_bmc_px / n_grid_px; land_area_km2 = 0.25 * n_land_px / n_grid_px
+  Densities (people per km2): pop_density_bmc, pop_density_land, pop_density_full (= pop / 0.25)
+  BMC cells with pop > 0: 1696
+    pop_density_bmc: max=271298.0621, median=38095.0557
+    pop_density_land: max=271298.0621, median=38148.9710
+    pop_density_full: max=76024.3973, median=37719.5380
+    cells where pop_density_land differs from pop_density_full by > 20%: 208
+
+  Flags (report only, drop nothing; BMC cells only):
+    partial_bmc (bmc_fraction < 0.5): 169
+    water_dominated (land_share < 0.5): 54
+    low_obs (cell median valid_count < 3): 0
+    no_pop (population == 0): 309
+    Cells with any flag: 410
+    Cells with no flags: 1595
+    core (in_bmc AND NOT partial_bmc AND NOT water_dominated): 1794
+    in_bmc cells that are no_pop and not in core: 110
+    low_obs fired 0 time(s).
+    thin_obs (cell median valid_count <= 20): 109
+    min vc_median among in_bmc cells with land: 18.0
+
+  lst_std uses pandas groupby std with ddof=1 (sample std).
+  BMC cells with n_land_px == 1 (lst_std NaN there): 8
+
+  Spearman(LST mean, LST median) across BMC cells with n_land_px > 0 = 0.9923 (n_pairs=1992)
+
+  Cross-checks (print only):
+    BMC cells with pop > 0 and bmc_fraction < 0.1: 13
+    BMC cells with pop == 0 and bmc_fraction > 0.9: 211
+
+  Round trip check (read back data\processed\cells_500m.csv): all assertions OK.
+  GeoJSON written to data\processed\cells_500m.geojson (2005 in_bmc features, reprojected to EPSG:4326).
+  Exact file names written: data/processed/cells_500m.csv, data/processed/cells_500m.geojson
+
+  First 10 rows of in_bmc cells (all columns):
+    cell_id  cell_row  cell_col  n_grid_px  n_bmc_px  n_land_px  bmc_fraction  land_share  bmc_area_km2  land_area_km2   lst_mean  lst_median   lst_std  ndvi_mean  ndbi_mean  vc_min  vc_median  vc_le20_share         pop  pop_density_bmc  pop_density_land  pop_density_full  in_bmc  partial_bmc  water_dominated  low_obs  no_pop  thin_obs   core      cell_minx     cell_maxy
+4         4         0         4        272        52         52      0.191176         1.0      0.047794       0.047794  36.878903   36.774652  1.178110   0.424211  -0.046274    24.0       24.0            0.0    0.000000         0.000000          0.000000          0.000000    True         True            False    False    True     False  False  267091.748357  2.131926e+06
+15       15         0        15        289       121        121      0.418685         1.0      0.104671       0.104671  32.561104   32.545709  0.153780   0.731301  -0.377724    22.0       23.0            0.0    0.000000         0.000000          0.000000          0.000000    True         True            False    False    True     False  False  272591.748357  2.131926e+06
+16       16         0        16        272       209        209      0.768382         1.0      0.192096       0.192096  32.579095   32.608942  0.224075   0.717497  -0.393387    23.0       24.0            0.0  164.952988       858.702634        858.702634        659.811951    True        False            False    False   False     False   True  273091.748357  2.131926e+06
+17       17         0        17        289       260        260      0.899654         1.0      0.224913       0.224913  33.155387   32.723444  1.054657   0.727348  -0.375426    23.0       24.0            0.0  266.938965      1186.851705       1186.851705       1067.755859    True        False            False    False   False     False   True  273591.748357  2.131926e+06
+18       18         0        18        289       289        289      1.000000         1.0      0.250000       0.250000  34.425109   33.738611  1.742723   0.626897  -0.291943    24.0       24.0            0.0    0.000000         0.000000          0.000000          0.000000    True        False            False    False    True     False   True  274091.748357  2.131926e+06
+19       19         0        19        272       264        264      0.970588         1.0      0.242647       0.242647  35.519667   35.394617  1.677822   0.618391  -0.287208    23.0       24.0            0.0  739.301270      3046.817353       3046.817353       2957.205078    True        False            False    False   False     False   True  274591.748357  2.131926e+06
+20       20         0        20        289       190        190      0.657439         1.0      0.164360       0.164360  34.857425   34.727258  1.022634   0.655097  -0.280868    23.0       23.0            0.0  272.105011      1655.544172       1655.544172       1088.420044    True        False            False    False   False     False   True  275091.748357  2.131926e+06
+21       21         0        21        289        39         39      0.134948         1.0      0.033737       0.033737  36.391372   35.874841  1.273905   0.681598  -0.291590    23.0       23.0            0.0  185.113678      5486.959275       5486.959275        740.454712    True         True            False    False   False     False  False  275591.748357  2.131926e+06
+51       51         1         3        272        55         55      0.202206         1.0      0.050551       0.050551  35.973103   35.997888  0.627664   0.389039  -0.094111    23.0       23.0            0.0    0.000000         0.000000          0.000000          0.000000    True         True            False    False    True     False  False  266591.748357  2.131426e+06
+52       52         1         4        256       253        253      0.988281         1.0      0.247070       0.247070  37.581261   37.715479  0.941410   0.435372  -0.051577    23.0       24.0            0.0    0.000000         0.000000          0.000000          0.000000    True        False            False    False    True     False   True  267091.748357  2.131426e+06
+
+  describe() of numeric columns on in_bmc cells only:
+           cell_id     cell_row     cell_col    n_grid_px     n_bmc_px    n_land_px  bmc_fraction   land_share  bmc_area_km2  land_area_km2     lst_mean   lst_median      lst_std    ndvi_mean    ndbi_mean       vc_min    vc_median  vc_le20_share           pop  pop_density_bmc  pop_density_land  pop_density_full      cell_minx     cell_maxy
+count  2005.000000  2005.000000  2005.000000  2005.000000  2005.000000  2005.000000   2005.000000  2005.000000   2005.000000    2005.000000  1992.000000  1992.000000  1984.000000  1992.000000  1992.000000  1992.000000  1992.000000    1992.000000   2005.000000      2005.000000       1992.000000       2005.000000    2005.000000  2.005000e+03
+mean   1628.628928    33.490773    21.071820   277.775062   253.879302   246.780549      0.914037     0.966842      0.228509       0.222116    39.604163    39.533353     1.625164     0.334711    -0.062367    21.790161    22.631777       0.062192   6813.713062     28343.985080      28711.340116      27254.852250  275627.658581  2.115181e+06
+std     930.633376    19.391016     9.955682    11.118073    65.848018    72.687652      0.234053     0.140093      0.058513       0.064754     3.034253     3.152984     0.764627     0.124429     0.092505     1.360320     1.158390       0.201853   5322.445743     21658.609049      21548.737268      21289.782970    4977.840840  9.695508e+03
+min       4.000000     0.000000     2.000000   256.000000     1.000000     0.000000      0.003460     0.000000      0.000865       0.000000    31.137476    31.137476     0.035045    -0.010865    -0.399573    14.000000    18.000000       0.000000      0.000000         0.000000          0.000000          0.000000  266091.748357  2.090926e+06
+25%     891.000000    18.000000    13.000000   272.000000   271.000000   256.000000      1.000000     1.000000      0.250000       0.248270    37.691281    37.553979     1.099858     0.248815    -0.089828    21.000000    22.000000       0.000000   1032.506241      5682.285889       6545.024307       4130.024963  271591.748357  2.107926e+06
+50%    1510.000000    31.000000    20.000000   272.000000   272.000000   272.000000      1.000000     1.000000      0.250000       0.250000    39.733563    39.615869     1.508710     0.307671    -0.042298    22.000000    23.000000       0.000000   7645.503174     32266.813721      32779.493838      30582.012695  275091.748357  2.116426e+06
+75%    2337.000000    48.000000    29.000000   289.000000   289.000000   289.000000      1.000000     1.000000      0.250000       0.250000    41.564884    41.480432     2.028576     0.419137    -0.006806    23.000000    23.000000       0.000000  11381.357117     45614.208984      45713.150940      45525.428467  279591.748357  2.122926e+06
+max    3945.000000    82.000000    44.000000   289.000000   289.000000   289.000000      1.000000     1.000000      0.250000       0.250000    48.673918    48.989801     6.002951     0.741189     0.177498    24.000000    24.000000       1.000000  19006.099335    271298.062073     271298.062073      76024.397339  287091.748357  2.131926e+06
+
+  Count of NaN per column among in_bmc cells:
+cell_id              0
+cell_row             0
+cell_col             0
+n_grid_px            0
+n_bmc_px             0
+n_land_px            0
+bmc_fraction         0
+land_share           0
+bmc_area_km2         0
+land_area_km2        0
+lst_mean            13
+lst_median          13
+lst_std             21
+ndvi_mean           13
+ndbi_mean           13
+vc_min              13
+vc_median           13
+vc_le20_share       13
+pop                  0
+pop_density_bmc      0
+pop_density_land    13
+pop_density_full     0
+cell_minx            0
+cell_maxy            0
+
+### Population gates (logs/phase3a_population.txt)
+WorldPop crop: shape=(457, 265), nodata=-99999.0
+  valid_pixels=48538, sum_box=15029088.36
+  sum_inside_BMC=13661494.69
+  Gate A (inside BMC == 13,661,494 within 1): True (diff=0.69)
+  500 m grid: n_rows=84, n_cols=48, n_cells=4032
+  WorldPop centres total=121105, in_range False=603
+  inside-BMC centres total=39540, in_range False among them=0
+  Grid sum over cells=13661494.69
+  Gate B (cell sum == inside-BMC within 1 percent): True (actual diff=0.00, limit=136614.95)
+  Cells with population > 0: 1696
+  Max cell population: 19006.10
+  Top 10 cells sum: 179978.57, share of total: 1.32%
+  Cells with population > 0 but n_bmc_px == 0: 0
+  Cell population array written to data\population\cells_population.npy
+
+### GeoJSON check (logs/phase3a_geojson_check.txt)
+shapely version: 2.2.0 (>= (2, 0) OK)
+Reading CSV: data\processed\cells_500m.csv
+in_bmc cells in CSV: 2005 (expected 2005)
+GeoJSON written to data\processed\cells_500m.geojson (2005 features, CRS EPSG:4326)
+Read-back feature count: 2005 (expected 2005)
+Read-back CRS: EPSG:4326
+Read-back bounds (lon_min, lat_min, lon_max, lat_max) = (72.774817, 18.893007, 72.980351, 19.268635)
+Bounds inside box (lon 72.77-72.99, lat 18.89-19.27): True
+CSV pop sum (in_bmc): 13661494.69
+GeoJSON pop property sum: 13661494.69
+pop sums match: True
+Every CSV column present as a feature property: True
+RESULT: ALL GEOJSON CHECKS OK
+
+### Spearman check (logs/phase3a_spearman_check.txt)
+real data: BMC cells with n_land_px > 0: 1992
+
+=== lst_mean vs lst_median ===
+  n_pairs = 1992
+  our spearman_rho   = 0.9922503132075576
+  scipy spearmanr    = 0.9922503132075574
+  pandas spearman    = 0.9922503132075574
+  abs diff vs scipy  = 2.220446049250313e-16
+  abs diff vs pandas = 2.220446049250313e-16
+
+=== lst_mean vs ndvi_mean ===
+  n_pairs = 1992
+  our spearman_rho   = -0.6115390845502784
+  scipy spearmanr    = -0.6115390845502784
+  pandas spearman    = -0.6115390845502784
+  abs diff vs scipy  = 0.0
+  abs diff vs pandas = 0.0
+
+=== lst_mean vs ndbi_mean ===
+  n_pairs = 1992
+  our spearman_rho   = 0.7547851645342701
+  scipy spearmanr    = 0.75478516453427
+  pandas spearman    = 0.75478516453427
+  abs diff vs scipy  = 1.1102230246251565e-16
+  abs diff vs pandas = 1.1102230246251565e-16
+
+=== lst_mean vs pop ===
+  n_pairs = 1992
+  our spearman_rho   = 0.5673218946524938
+  scipy spearmanr    = 0.5673218946524938
+  pandas spearman    = 0.5673218946524938
+  abs diff vs scipy  = 0.0
+  abs diff vs pandas = 0.0
+
+=== synthetic tie-heavy length 200 ===
+  n_pairs = 200
+  our spearman_rho   = 0.047794976492168385
+  scipy spearmanr    = 0.047794976492168385
+  pandas spearman    = 0.047794976492168385
+  abs diff vs scipy  = 0.0
+  abs diff vs pandas = 0.0
+
+worst absolute difference across all comparisons: 2.220446049250313e-16
+RESULT: all comparisons within 1e-9.
+
+### Env probe (logs/phase3a_env_probe.txt)
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.1
+np.corrcoef([1,2,3,4], [1,3,2,4]) = 0.7999999999999999 (expect 0.8)
+scipy.stats.spearmanr([1,2,3,4], [1,3,2,4]) = 0.7999999999999999 (expect 0.8)
+pandas Series.corr(method='spearman') = 0.7999999999999999 (expect 0.8)
+
+The same call through the env python.exe without conda run was observed by the user to exit with 0xC06D007F (even for small corrcoef calls). The cause was not diagnosed here; running through 'conda run -n uhi python' works.
+
+### Density audit (logs/phase3a_density_audit.txt)
+Source: data\processed\cells_500m.csv
+Total population reference: 13661494.69
+
+a. Core cells with pop > 0:
+  count = 1595
+  pop_density_bmc: count=1595 max=76024.3973 p99=66329.4253 median=39086.3281
+  pop_density_land: count=1595 max=76024.3973 p99=66600.7595 median=39185.2273
+  pop_density_full: count=1595 max=76024.3973 p99=66329.4253 median=38951.7731
+
+b. 10 core cells with highest pop_density_bmc:
+  cell_id=931 n_bmc_px=256 n_grid_px=256 bmc_fraction=1.000000 pop=19006.0993 pop_density_bmc=76024.3973 pop_density_land=76024.3973 pop_density_full=76024.3973
+  cell_id=1027 n_bmc_px=272 n_grid_px=272 bmc_fraction=1.000000 pop=18934.8826 pop_density_bmc=75739.5303 pop_density_land=75739.5303 pop_density_full=75739.5303
+  cell_id=835 n_bmc_px=272 n_grid_px=272 bmc_fraction=1.000000 pop=18629.1928 pop_density_bmc=74516.7712 pop_density_land=74516.7712 pop_density_full=74516.7712
+  cell_id=1170 n_bmc_px=289 n_grid_px=289 bmc_fraction=1.000000 pop=18196.6348 pop_density_bmc=72786.5392 pop_density_land=72786.5392 pop_density_full=72786.5392
+  cell_id=1025 n_bmc_px=289 n_grid_px=289 bmc_fraction=1.000000 pop=18131.0546 pop_density_bmc=72524.2183 pop_density_land=72524.2183 pop_density_full=72524.2183
+  cell_id=932 n_bmc_px=272 n_grid_px=272 bmc_fraction=1.000000 pop=17612.9956 pop_density_bmc=70451.9824 pop_density_land=70451.9824 pop_density_full=70451.9824
+  cell_id=689 n_bmc_px=289 n_grid_px=289 bmc_fraction=1.000000 pop=17567.8186 pop_density_bmc=70271.2743 pop_density_land=70271.2743 pop_density_full=70271.2743
+  cell_id=834 n_bmc_px=289 n_grid_px=289 bmc_fraction=1.000000 pop=17433.2888 pop_density_bmc=69733.1550 pop_density_land=69733.1550 pop_density_full=69733.1550
+  cell_id=929 n_bmc_px=272 n_grid_px=272 bmc_fraction=1.000000 pop=17331.8567 pop_density_bmc=69327.4268 pop_density_land=69327.4268 pop_density_full=69327.4268
+  cell_id=687 n_bmc_px=289 n_grid_px=289 bmc_fraction=1.000000 pop=17134.7422 pop_density_bmc=68538.9688 pop_density_land=68538.9688 pop_density_full=68538.9688
+
+c. 10 highest pop_density_bmc among all in_bmc cells:
+  cell_id=2697 pop_density_bmc=271298.0621 core=False
+  cell_id=2674 pop_density_bmc=78488.6719 core=False
+  cell_id=2365 pop_density_bmc=78262.4427 core=False
+  cell_id=931 pop_density_bmc=76024.3973 core=True
+  cell_id=1027 pop_density_bmc=75739.5303 core=True
+  cell_id=835 pop_density_bmc=74516.7712 core=True
+  cell_id=1170 pop_density_bmc=72786.5392 core=True
+  cell_id=1025 pop_density_bmc=72524.2183 core=True
+  cell_id=932 pop_density_bmc=70451.9824 core=True
+  cell_id=689 pop_density_bmc=70271.2743 core=True
+
+d. Population by group (share of total 13,661,494.69):
+  pop in core cells = 13543175.90 (99.1339%)
+  pop in partial_bmc cells = 108424.78 (0.7937%)
+  pop in water_dominated cells = 10027.26 (0.0734%)
+  pop in cells that are both partial_bmc and water_dominated = 133.25 (0.0010%)
+
+e. Core cells where density differs from pop_density_full by > 20%:
+  pop_density_bmc vs pop_density_full: 81
+  pop_density_land vs pop_density_full: 107
+
+f. Cells with pop > 0 and n_land_px == 0: 0
+
+Numbers only; no interpretation.
+
+### Month seam (logs/phase3a_month_seam.txt)
+Grid: | 30.00, 0.00, 265091.75|
+| 0.00,-30.00, 2131925.98|
+| 0.00, 0.00, 1.00| 1393 789
+build_composites target grid matches composites tif grid.
+BMC mask pixels: 509028
+Unique dates from STAC search: 26
+  date: 2024-03-06 scenes: 2
+  date: 2024-03-14 scenes: 2
+  date: 2024-03-22 scenes: 2
+  date: 2024-03-30 scenes: 1
+  date: 2024-04-07 scenes: 2
+  date: 2024-04-15 scenes: 2
+  date: 2024-04-23 scenes: 2
+  date: 2024-05-01 scenes: 2
+  date: 2024-05-09 scenes: 2
+  date: 2024-05-17 scenes: 2
+  date: 2025-03-01 scenes: 2
+  date: 2025-03-09 scenes: 2
+  date: 2025-03-17 scenes: 2
+  date: 2025-03-25 scenes: 2
+  date: 2025-04-02 scenes: 1
+  date: 2025-04-10 scenes: 2
+  date: 2025-04-18 scenes: 2
+  date: 2025-04-26 scenes: 2
+  date: 2026-03-04 scenes: 2
+  date: 2026-03-12 scenes: 2
+  date: 2026-03-20 scenes: 2
+  date: 2026-03-28 scenes: 2
+  date: 2026-04-13 scenes: 2
+  date: 2026-04-29 scenes: 2
+  date: 2026-05-07 scenes: 2
+  date: 2026-05-31 scenes: 1
+All assets cached for all scenes.
+Per-date mosaics built: 26
+GATE: BMC land pixels compared: 494795
+GATE: max abs difference (K): 0.0
+GATE: pixels differing by more than 1e-3 K: 0
+GATE: OK.
+March dates: 12 ['2024-03-06', '2024-03-14', '2024-03-22', '2024-03-30', '2025-03-01', '2025-03-09', '2025-03-17', '2025-03-25', '2026-03-04', '2026-03-12', '2026-03-20', '2026-03-28']
+April dates: 9 ['2024-04-07', '2024-04-15', '2024-04-23', '2025-04-02', '2025-04-10', '2025-04-18', '2025-04-26', '2026-04-13', '2026-04-29']
+May dates: 5 ['2024-05-01', '2024-05-09', '2024-05-17', '2026-05-07', '2026-05-31']
+Wrote monthly rasters to data\composites_months
+Core cells with n_land_px > 0: 1794
+Cells with both months valid: 1794
+Cells dropped because either month is NaN: 0
+Mean over cells of March LST (C): 39.03736214001743
+Mean over cells of AprMay LST (C): 41.17970548966847
+Mean over cells of (AprMay - March) LST (C): 2.1423433496510573
+Spearman(March, AprMay) cell values: 0.9579299465605265 n_pairs: 1794
+Top-20 March cells: [1186, 1234, 1377, 1574, 1575, 1618, 1706, 1754, 1803, 1846, 1892, 1941, 2097, 2144, 2145, 2146, 2193, 2194, 2241, 2291]
+Top-20 AprMay cells: [838, 1575, 1706, 1754, 1801, 1803, 1843, 1844, 1845, 1846, 1890, 1891, 1892, 1893, 1894, 1895, 1941, 1942, 2097, 2145]
+Jaccard(top20 March, top20 AprMay): 0.2903225806451613
+Top-20 by all-date lst_mean (CSV): [1575, 1618, 1706, 1754, 1803, 1843, 1844, 1845, 1846, 1891, 1892, 1893, 1894, 1895, 1941, 1942, 2097, 2145, 2146, 2291]
+Jaccard(top20 March, top20 lst_mean): 0.42857142857142855
+Jaccard(top20 AprMay, top20 lst_mean): 0.7391304347826086
+Top-180 March cells: [213, 214, 547, 595, 685, 693, 694, 695, 779, 788, 790, 826, 827, 836, 837, 838, 874, 875, 884, 933, 951, 995, 1031, 1033, 1051, 1090, 1099, 1138, 1139, 1166, 1186, 1191, 1234, 1236, 1237, 1266, 1275, 1281, 1282, 1322, 1329, 1363, 1376, 1377, 1378, 1411, 1464, 1476, 1525, 1526, 1568, 1570, 1574, 1575, 1616, 1618, 1663, 1666, 1706, 1710, 1711, 1715, 1753, 1754, 1755, 1758, 1759, 1795, 1797, 1798, 1801, 1802, 1803, 1804, 1805, 1808, 1809, 1843, 1844, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1857, 1888, 1889, 1890, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 1898, 1899, 1937, 1938, 1940, 1941, 1942, 1943, 1944, 1946, 1990, 2037, 2038, 2039, 2040, 2086, 2087, 2088, 2094, 2095, 2096, 2097, 2135, 2137, 2144, 2145, 2146, 2188, 2191, 2192, 2193, 2194, 2237, 2238, 2239, 2240, 2241, 2242, 2243, 2285, 2287, 2288, 2289, 2290, 2291, 2337, 2338, 2370, 2371, 2378, 2389, 2418, 2424, 2618, 2619, 2620, 2621, 2660, 2661, 2662, 2668, 2714, 2715, 2762, 2898, 2944, 2945, 2992, 2993, 3040, 3041, 3042, 3088, 3136, 3184, 3231, 3279, 3326, 3327, 3373, 3374, 3375, 3422]
+Top-180 AprMay cells: [119, 166, 167, 213, 214, 262, 340, 547, 595, 600, 637, 648, 685, 692, 693, 694, 695, 696, 733, 778, 779, 788, 790, 826, 827, 835, 836, 837, 838, 871, 874, 875, 884, 885, 919, 933, 968, 985, 1015, 1031, 1033, 1051, 1063, 1138, 1139, 1164, 1165, 1166, 1186, 1234, 1236, 1266, 1282, 1310, 1311, 1322, 1329, 1362, 1363, 1376, 1377, 1411, 1464, 1476, 1568, 1574, 1575, 1616, 1618, 1663, 1706, 1710, 1715, 1750, 1753, 1754, 1755, 1758, 1759, 1790, 1794, 1795, 1797, 1798, 1799, 1801, 1802, 1803, 1804, 1805, 1808, 1809, 1810, 1842, 1843, 1844, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1857, 1858, 1888, 1889, 1890, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 1898, 1899, 1937, 1938, 1939, 1940, 1941, 1942, 1943, 1944, 1945, 1946, 1990, 2038, 2039, 2086, 2087, 2088, 2095, 2096, 2097, 2135, 2144, 2145, 2146, 2192, 2193, 2194, 2239, 2241, 2242, 2243, 2285, 2287, 2290, 2291, 2338, 2370, 2371, 2418, 2424, 2469, 2668, 2669, 2764, 2898, 2944, 2945, 2992, 2993, 3040, 3041, 3042, 3088, 3136, 3231, 3279, 3326, 3327, 3373, 3374, 3375, 3422]
+Top-180 by all-date lst_mean (CSV): [213, 214, 262, 547, 595, 637, 685, 693, 694, 695, 696, 733, 778, 779, 788, 790, 826, 827, 836, 837, 838, 874, 875, 884, 921, 933, 995, 1015, 1031, 1033, 1051, 1063, 1090, 1099, 1138, 1139, 1166, 1186, 1191, 1234, 1236, 1266, 1281, 1282, 1322, 1329, 1363, 1376, 1377, 1411, 1464, 1476, 1525, 1526, 1568, 1570, 1574, 1575, 1616, 1618, 1663, 1666, 1706, 1710, 1711, 1715, 1753, 1754, 1755, 1758, 1759, 1790, 1794, 1795, 1797, 1798, 1799, 1801, 1802, 1803, 1804, 1805, 1806, 1808, 1809, 1842, 1843, 1844, 1845, 1846, 1847, 1848, 1849, 1850, 1851, 1852, 1853, 1857, 1888, 1889, 1890, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 1898, 1899, 1937, 1938, 1939, 1940, 1941, 1942, 1943, 1944, 1945, 1946, 1990, 2038, 2039, 2040, 2086, 2087, 2088, 2094, 2095, 2096, 2097, 2135, 2137, 2144, 2145, 2146, 2192, 2193, 2194, 2239, 2240, 2241, 2242, 2243, 2285, 2287, 2289, 2290, 2291, 2338, 2370, 2371, 2418, 2424, 2469, 2619, 2667, 2668, 2669, 2715, 2762, 2898, 2944, 2945, 2992, 2993, 3040, 3041, 3042, 3088, 3136, 3231, 3279, 3326, 3327, 3373, 3374, 3375, 3422, 3423]
+Jaccard(top180 March, top180 AprMay): 0.6438356164383562
+Jaccard(top180 March, top180 lst_mean): 0.7910447761194029
+Jaccard(top180 AprMay, top180 lst_mean): 0.7821782178217822
+Clustering top20 March: num_components=9 largest_component_size=7
+Clustering top20 AprMay: num_components=5 largest_component_size=12
+Clustering top20 lst_mean: num_components=6 largest_component_size=11
+Clustering top180 March: num_components=30 largest_component_size=61
+Clustering top180 AprMay: num_components=34 largest_component_size=67
+Clustering top180 lst_mean: num_components=31 largest_component_size=68
+Previously logged value checks (old vs new):
+  Spearman(March, AprMay): old=0.9579299465605265 new=0.9579299465605265
+  Jaccard(top20 March, top20 AprMay): old=0.2903225806451613 new=0.2903225806451613
+  Jaccard(top20 March, top20 lst_mean): old=0.42857142857142855 new=0.42857142857142855
+  Jaccard(top20 AprMay, top20 lst_mean): old=0.7391304347826086 new=0.7391304347826086
+March share of valid dates: cell median min/median/max: 0.4545454680919647 0.47826087474823 0.6111111044883728
+Spearman(cell median March share, all-date lst_mean): 0.00184710120860571 n_pairs: 1794
+Spearman(all-date lst_mean, cell vc_median): 0.0012783767315511032 n_pairs: 1794
+
+### Maps (logs/phase3a_maps.txt)
+Wrote logs\phase3a_map_lst_mean.png (1200x2100 pixels), colour limits vmin=32.2059 vmax=48.6739 (core cells only).
+Wrote logs\phase3a_map_population.png (1200x2100 pixels), colour limits vmin=0.0000 vmax=19006.0993 (core cells only).
+Wrote logs\phase3a_map_vc_median.png (1200x2100 pixels), colour limits vmin=18.0000 vmax=24.0000 (core cells only).
+
+### Tests (logs/phase3a_tests.txt)
+============================= test session starts =============================
+platform win32 -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\Aryan\anaconda3\envs\uhi\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi
+plugins: anyio-4.16.0
+collecting ... collected 34 items
+
+tests/test_aggregate.py::test_assign_cell_boundary_goes_right_and_below PASSED [  2%]
+tests/test_aggregate.py::test_sum_per_cell_hand_total PASSED             [  5%]
+tests/test_aggregate.py::test_sum_per_cell_excludes_nan PASSED           [  8%]
+tests/test_aggregate.py::test_mean_per_cell_excludes_nan_but_counts_it PASSED [ 11%]
+tests/test_aggregate.py::test_mean_per_cell_all_nan_empty_cell PASSED    [ 14%]
+tests/test_aggregate.py::test_total_conserved PASSED                     [ 17%]
+tests/test_aggregate.py::test_out_of_range_point_not_added_to_any_cell PASSED [ 20%]
+tests/test_aggregate.py::test_sum_per_cell_rejects_id_equal_to_n_cells PASSED [ 23%]
+tests/test_aggregate.py::test_sum_per_cell_rejects_negative_id PASSED    [ 26%]
+tests/test_scale_and_qa.py::test_scale_offset_math PASSED                [ 29%]
+tests/test_scale_and_qa.py::test_lst_celsius_range PASSED                [ 32%]
+tests/test_scale_and_qa.py::test_ndvi_range PASSED                       [ 35%]
+tests/test_scale_and_qa.py::test_ndvi_hand_computed PASSED               [ 38%]
+tests/test_scale_and_qa.py::test_ndbi_formula PASSED                     [ 41%]
+tests/test_scale_and_qa.py::test_ndbi_hand_computed PASSED               [ 44%]
+tests/test_scale_and_qa.py::test_ndwi_hand_computed PASSED               [ 47%]
+tests/test_scale_and_qa.py::test_qa_bit_masking_compute_validity PASSED  [ 50%]
+tests/test_scale_and_qa.py::test_dilated_cloud_bit_1_compute_validity PASSED [ 52%]
+tests/test_scale_and_qa.py::test_fill_bit_masking_compute_validity PASSED [ 55%]
+tests/test_scale_and_qa.py::test_nan_handling PASSED                     [ 58%]
+tests/test_scale_and_qa.py::test_union_logic_across_two_scenes PASSED    [ 61%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_cloudy_a_clear_b_returns_b PASSED [ 64%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_clear_returns_mean PASSED [ 67%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan PASSED [ 70%]
+tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any PASSED [ 73%]
+tests/test_stats_utils.py::test_perfectly_increasing_gives_one PASSED    [ 76%]
+tests/test_stats_utils.py::test_perfectly_decreasing_gives_minus_one PASSED [ 79%]
+tests/test_stats_utils.py::test_tie_in_one_array PASSED                  [ 82%]
+tests/test_stats_utils.py::test_nan_pairs_dropped_and_n_pairs_reported PASSED [ 85%]
+tests/test_stats_utils.py::test_constant_input_gives_nan PASSED          [ 88%]
+tests/test_stats_utils.py::test_length_one_gives_nan PASSED              [ 91%]
+tests/test_stats_utils.py::test_rank_average_ties PASSED                 [ 94%]
+tests/test_stats_utils.py::test_rank_average_no_ties PASSED              [ 97%]
+tests/test_stats_utils.py::test_all_nan_gives_nan_pairs_zero PASSED      [100%]
+
+============================== warnings summary ===============================
+tests/test_scale_and_qa.py::test_build_date_mosaic_both_invalid_returns_nan
+tests/test_scale_and_qa.py::test_build_date_mosaic_date_validity_equals_any
+  C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:83: RuntimeWarning: All-NaN slice encountered
+    mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 34 passed, 2 warnings in 0.11s ========================
+

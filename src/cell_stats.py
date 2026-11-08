@@ -182,7 +182,7 @@ def main():
     low_obs = (vc_med < 3.0) & in_bmc
     no_pop = (pop == 0.0) & in_bmc
     thin_obs = in_bmc & (vc_med <= 20.0)
-    any_flag = partial_bmc | water_dominated | low_obs | no_pop | thin_obs
+    any_flag = partial_bmc | water_dominated | low_obs | no_pop
 
     def count_bmc(mask):
         return int((mask & in_bmc).sum())
@@ -347,6 +347,37 @@ def main():
     print(f"  GeoJSON pop sum = {geojson_pop_sum:.2f}, CSV pop sum (in_bmc) = {csv_pop_sum:.2f}")
     if not geojson_ok:
         raise SystemExit("STOP: GeoJSON read-back check failed.")
+
+    # Print each old value (from round R3) next to the new value.
+    old = {
+        "in_bmc": 2005,
+        "core": 1794,
+        "pop_gt_0_cells": 1696,
+        "no_pop": 309,
+        "partial_bmc": 169,
+        "water_dominated": 54,
+        "thin_obs": 109,
+        "low_obs": 0,
+        "sum_n_bmc_px": 509028,
+        "sum_n_land_px": 494795,
+    }
+    new = {
+        "in_bmc": int(in_bmc.sum()),
+        "core": int(core.sum()),
+        "pop_gt_0_cells": int(pop_pos_bmc.sum()),
+        "no_pop": int(no_pop.sum()),
+        "partial_bmc": int(partial_bmc.sum()),
+        "water_dominated": int(water_dominated.sum()),
+        "thin_obs": int(thin_obs.sum()),
+        "low_obs": int(low_obs.sum()),
+        "sum_n_bmc_px": int(n_bmc_px.sum()),
+        "sum_n_land_px": int(n_land_px.sum()),
+    }
+    for key in old:
+        status = "UNCHANGED" if old[key] == new[key] else "CHANGED"
+        print(f"OLD {key}={old[key]} NEW {key}={new[key]} {status}")
+    if any(old[key] != new[key] for key in old):
+        raise SystemExit("STOP: one or more required values changed after flag fix.")
 
     # Logging output.
     df_in_bmc = df[in_bmc]
