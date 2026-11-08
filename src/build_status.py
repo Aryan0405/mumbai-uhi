@@ -1,4 +1,4 @@
-"""Item 3: Build STATUS.md programmatically from log files.
+"""Phase 3A item 3: Build STATUS.md programmatically from log files.
 Reads:
   logs/round4b_per_date_valid.txt
   logs/round4c_month_mix.txt
@@ -16,48 +16,21 @@ OUT = "STATUS.md"
 
 def read_log(name):
     path = os.path.join(LOGS, name)
-    with open(path, "rb") as f:
-        head = f.read(2)
-    if head == b"\xff\xfe":
-        enc = "utf-16"
-    elif head == b"\xfe\xff":
-        enc = "utf-16"
-    else:
-        enc = "utf-8-sig"
-    with open(path, "r", encoding=enc) as f:
-        return f.read()
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            return f.read()
+    except UnicodeDecodeError:
+        with open(path, "r", encoding="utf-16") as f:
+            return f.read()
+    except FileNotFoundError:
+        return f"(log file {path} not found)"
 
 
 def main():
-    per_date = read_log("round4b_per_date_valid.txt")
-    month_mix = read_log("round4c_month_mix.txt")
-    old_vs_v2 = read_log("round4c_old_vs_v2.txt")
-    hot_pixels = read_log("round4c_hot_pixels.txt")
-    valid_count = read_log("round4c_valid_count_check.txt")
-    tests = read_log("round4b_tests.txt")
-
     lines = []
     lines.append("# STATUS.md - Phase 2 (DATA)")
     lines.append("")
     lines.append("Run date: 2026-11-08. Conda env: uhi. Command prefix: conda run -n uhi.")
-    lines.append("")
-
-    lines.append("## Process state")
-    lines.append("scratch scripts deleted or disabled; no project processes running.")
-    lines.append("")
-
-    lines.append("## Source data")
-    lines.append("Collection: landsat-c2-l2 (Microsoft Planetary Computer STAC,")
-    lines.append("pystac-client + planetary-computer, anonymous, signed URLs). Assets")
-    lines.append("confirmed from live STAC raster:bands metadata: lwir11 (scale")
-    lines.append("0.00341802, offset 149.0), red (scale 0.0000275, offset -0.2), nir08,")
-    lines.append("swir16, green, qa_pixel.")
-    lines.append("Population: WorldPop India 2020 constrained,")
-    lines.append("ind_ppp_2020_constrained.tif, data.worldpop.org,")
-    lines.append("GIS/Population/Global_2000_2020_Constrained/2020/BSGM/IND/.")
-    lines.append("Study box: lon 72.77 to 72.99, lat 18.89 to 19.27. Metric CRS EPSG:32643.")
-    lines.append("Season: Window B only (Mar to May 2024/2025/2026), landsat-8 and")
-    lines.append("landsat-9, scene cloud under 10 percent.")
     lines.append("")
 
     lines.append("## 2.1 Search - landsat-c2-l2, Window B, L8+L9, cloud < 10 percent")
@@ -115,8 +88,8 @@ def main():
     lines.append("lwir11.tif, red.tif, nir08.tif, swir16.tif, green.tif, valid_count.tif")
     lines.append("ndvi.tif, ndbi.tif, ndwi.tif")
     lines.append("```")
-    lines.append("compute_indices output block was not produced this round: label it exactly")
-    lines.append("output of the original run, not rerun.")
+    lines.append("compute_indices output block was not produced this round: output of the")
+    lines.append("original run, not rerun.")
     lines.append("```")
     lines.append("NDVI: min=-0.5757 max=0.8222 in [-1,1]: True")
     lines.append("LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077")
@@ -126,23 +99,14 @@ def main():
     lines.append("Pixels below 3 valid obs: box=0 (0.00%), BMC=0 (0.00%)")
     lines.append("Valid-obs median built_up: 23.0 (n=16384, window rows 742:870 cols 224:352)")
     lines.append("Valid-obs median park: 22.0 (n=16384, window rows 117:245 cols 442:570)")
-    lines.append("Valid count colorbar range: 11.0 to 26.0")
-    lines.append("Quicklook PNGs written to logs/")
-    lines.append("```")
     lines.append("")
 
-    lines.append("## 2.6 Valid-observation count distribution")
-    lines.append("As above. min=11.0, 50th=23.0, max=26.0 inside BMC; no 500 m cell flagged")
-    lines.append("(valid counts are per 30 m pixel; the >=3 valid observation rule is satisfied")
-    lines.append("everywhere). Flagging at 500 m happens in Phase 3 aggregation.")
-    lines.append("")
-
-    lines.append("## 2.7 Per-date table")
+    lines.append("## 2.6 Per-date table")
     lines.append("Written to logs/per_date_valid_fraction.txt (verbatim below). Columns:")
     lines.append("date, valid_fraction_box, valid_fraction_bmc, bmc_pixel_count,")
     lines.append("footprint_fraction_bmc. Reuses data/landsat/cache/ (no re-download).")
     lines.append("```")
-    lines.append(per_date.rstrip())
+    lines.append(read_log("round4b_per_date_valid.txt").rstrip())
     lines.append("```")
     lines.append("")
 
@@ -180,7 +144,7 @@ def main():
     lines.append("both-clear returns the mean; both-invalid returns NaN; date validity equals")
     lines.append("any(valid); NaN handling; dilated cloud bit 1; NDWI.")
     lines.append("```")
-    lines.append(tests.rstrip())
+    lines.append(read_log("round4b_tests.txt").rstrip())
     lines.append("```")
     lines.append("")
 
@@ -240,31 +204,34 @@ def main():
     lines.append("")
     lines.append("### Per-date validity (logs/round4b_per_date_valid.txt)")
     lines.append("```")
-    lines.append(per_date.rstrip())
+    lines.append(read_log("round4b_per_date_valid.txt").rstrip())
     lines.append("```")
     lines.append("")
+
     lines.append("### Month mix and per-date medians (logs/round4c_month_mix.txt)")
     lines.append("```")
-    lines.append(month_mix.rstrip())
+    lines.append(read_log("round4c_month_mix.txt").rstrip())
     lines.append("```")
     lines.append("")
+
     lines.append("### Old versus v2 (logs/round4c_old_vs_v2.txt)")
-    lines.append("Result: identical, mechanism not tested.")
+    lines.append("Result: identical, mechanism not tested (overlap fraction never measured).")
     lines.append("```")
-    lines.append(old_vs_v2.rstrip())
+    lines.append(read_log("round4c_old_vs_v2.txt").rstrip())
     lines.append("```")
     lines.append("")
+
     lines.append("### Hot clusters and removed-water mask (logs/round4c_hot_pixels.txt)")
     lines.append("```")
-    lines.append(hot_pixels.rstrip())
+    lines.append(read_log("round4c_hot_pixels.txt").rstrip())
     lines.append("```")
     lines.append("")
+
     lines.append("### Valid-count versus LST check (logs/round4c_valid_count_check.txt)")
     lines.append("Check done at 30 m only; the 500 m check is pending in Phase 3.")
     lines.append("```")
-    lines.append(valid_count.rstrip())
+    lines.append(read_log("round4c_valid_count_check.txt").rstrip())
     lines.append("```")
-    lines.append("")
 
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

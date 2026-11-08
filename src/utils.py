@@ -1,7 +1,23 @@
 """Pure math helpers used by the pipeline and tests.
 No rasterio/stac dependency; safe to unit test.
 """
+import os
+import warnings
+
 import numpy as np
+
+
+def write_log(path, text):
+    """Write text to path with utf-8 encoding, overwriting any existing file."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text if text.endswith("\n") else text + "\n")
+
+
+def silence_all_nan_warning():
+    """Suppress the known np.nanmedian \"All-NaN slice\" warning on fully masked
+    scenes, which is expected and harmless here."""
+    warnings.filterwarnings("ignore", message="All-NaN slice encountered",
+                            category=RuntimeWarning)
 
 
 def apply_scale_offset(dn, scale, offset):

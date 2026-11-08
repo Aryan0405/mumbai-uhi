@@ -1,15 +1,7 @@
-"""Regenerate logs/per_date_valid_fraction.txt using the shared validity
+"""Regenerate logs/round4b_per_date_valid.txt using the shared validity
 function (src/utils.compute_validity) with UNION of per-scene validity per
 date. Columns: date, valid_fraction_box, valid_fraction_bmc,
 bmc_pixel_count, footprint_fraction_bmc.
-
-valid_fraction_box   = fraction of box pixels valid for the date (union of
-                       per-scene validity).
-valid_fraction_bmc   = fraction of BMC pixels valid for the date (denominator
-                       = bmc_pixel_count).
-footprint_fraction_bmc = fraction of BMC pixels with finite lwir11 on that
-                       date, BEFORE QA masking (union of finite lwir across
-                       scenes).
 Reuses disk cache; no re-download of cached scenes.
 """
 import os
@@ -26,7 +18,9 @@ import geopandas as gpd
 
 sys.path.insert(0, "src")
 import config
-from utils import build_date_mosaic
+from utils import build_date_mosaic, write_log, silence_all_nan_warning
+
+silence_all_nan_warning()
 
 CACHE_DIR = "data/landsat/cache"
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
@@ -49,7 +43,6 @@ BMC_MASK = rio_rasterize(
     transform=TARGET_TRANSFORM, fill=0, default_value=1, dtype="uint8",
 ).astype(bool)
 BMC_PIXEL_COUNT = int(BMC_MASK.sum())
-print(f"BMC pixel count (denominator): {BMC_PIXEL_COUNT}")
 
 
 def search_window_b():
@@ -90,7 +83,9 @@ def load_asset_cached(it, asset_name):
 def main():
     by_date = search_window_b()
     dates = sorted(by_date)
-    rows = []
+    lines = []
+    lines.append("date valid_fraction_box valid_fraction_bmc "
+                 "bmc_pixel_count footprint_fraction_bmc")
     for d in dates:
         scenes = []
         date_finite_union = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
@@ -103,16 +98,11 @@ def main():
         vf_box = float(np.mean(date_validity))
         vf_bmc = float(np.sum(date_validity & BMC_MASK) / BMC_PIXEL_COUNT)
         fp_bmc = float(np.sum(date_finite_union & BMC_MASK) / BMC_PIXEL_COUNT)
-        rows.append((d, vf_box, vf_bmc, BMC_PIXEL_COUNT, fp_bmc))
-        print(f"{d}: vf_box={vf_box:.4f} vf_bmc={vf_bmc:.4f} "
-              f"fp_bmc={fp_bmc:.4f}")
-    table_path = os.path.join(config.DIR_LOGS, "per_date_valid_fraction.txt")
-    with open(table_path, "w") as f:
-        f.write("date valid_fraction_box valid_fraction_bmc "
-                "bmc_pixel_count footprint_fraction_bmc\n")
-        for d, vb, vbmc, bpc, fpb in rows:
-            f.write(f"{d} {vb:.6f} {vbmc:.6f} {bpc} {fpb:.6f}\n")
-    print(f"Per-date table written to {table_path}")
+        lines.append(f"{d} {vf_box:.6f} {vf_bmc:.6f} {BMC_PIXEL_COUNT} "
+                     f"{fp_bmc:.6f}")
+    table_path = os.path.join(config.DIR_LOGS, "round4b_per_date_valid.txt")
+    write_log(table_path, "\n".join(lines))
+    print(table_path)
 
 
 if __name__ == "__main__":

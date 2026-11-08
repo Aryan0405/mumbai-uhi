@@ -2,22 +2,6 @@
 
 Run date: 2026-11-08. Conda env: uhi. Command prefix: conda run -n uhi.
 
-## Process state
-scratch scripts deleted or disabled; no project processes running.
-
-## Source data
-Collection: landsat-c2-l2 (Microsoft Planetary Computer STAC,
-pystac-client + planetary-computer, anonymous, signed URLs). Assets
-confirmed from live STAC raster:bands metadata: lwir11 (scale
-0.00341802, offset 149.0), red (scale 0.0000275, offset -0.2), nir08,
-swir16, green, qa_pixel.
-Population: WorldPop India 2020 constrained,
-ind_ppp_2020_constrained.tif, data.worldpop.org,
-GIS/Population/Global_2000_2020_Constrained/2020/BSGM/IND/.
-Study box: lon 72.77 to 72.99, lat 18.89 to 19.27. Metric CRS EPSG:32643.
-Season: Window B only (Mar to May 2024/2025/2026), landsat-8 and
-landsat-9, scene cloud under 10 percent.
-
 ## 2.1 Search - landsat-c2-l2, Window B, L8+L9, cloud < 10 percent
 Verbatim raw output (src/search_landsat.py):
 ```
@@ -69,8 +53,8 @@ Per-pixel median composite across 26 dates. Output GeoTIFFs in EPSG:32643 at
 lwir11.tif, red.tif, nir08.tif, swir16.tif, green.tif, valid_count.tif
 ndvi.tif, ndbi.tif, ndwi.tif
 ```
-compute_indices output block was not produced this round: label it exactly
-output of the original run, not rerun.
+compute_indices output block was not produced this round: output of the
+original run, not rerun.
 ```
 NDVI: min=-0.5757 max=0.8222 in [-1,1]: True
 LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077
@@ -80,57 +64,39 @@ Valid-count (inside BMC): min=14.0 median=23.0 max=24.0
 Pixels below 3 valid obs: box=0 (0.00%), BMC=0 (0.00%)
 Valid-obs median built_up: 23.0 (n=16384, window rows 742:870 cols 224:352)
 Valid-obs median park: 22.0 (n=16384, window rows 117:245 cols 442:570)
-Valid count colorbar range: 11.0 to 26.0
-Quicklook PNGs written to logs/
-```
 
-## 2.6 Valid-observation count distribution
-As above. min=11.0, 50th=23.0, max=26.0 inside BMC; no 500 m cell flagged
-(valid counts are per 30 m pixel; the >=3 valid observation rule is satisfied
-everywhere). Flagging at 500 m happens in Phase 3 aggregation.
-
-## 2.7 Per-date table
+## 2.6 Per-date table
 Written to logs/per_date_valid_fraction.txt (verbatim below). Columns:
 date, valid_fraction_box, valid_fraction_bmc, bmc_pixel_count,
 footprint_fraction_bmc. Reuses data/landsat/cache/ (no re-download).
 ```
-conda : C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:67: RuntimeWarning: 
-All-NaN slice encountered
-At line:1 char:1
-+ conda run --no-capture-output -n uhi python src/per_date_valid.py > l ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (C:\Users\Aryan\...ice encountered:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-  mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
-BMC pixel count (denominator): 509028
-2024-03-06: vf_box=0.9999 vf_bmc=1.0000 fp_bmc=1.0000
-2024-03-14: vf_box=0.9955 vf_bmc=0.9941 fp_bmc=1.0000
-2024-03-22: vf_box=0.9995 vf_bmc=0.9999 fp_bmc=1.0000
-2024-03-30: vf_box=0.0067 vf_bmc=0.0000 fp_bmc=0.0000
-2024-04-07: vf_box=0.9884 vf_bmc=1.0000 fp_bmc=1.0000
-2024-04-15: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2024-04-23: vf_box=0.6292 vf_bmc=0.7763 fp_bmc=1.0000
-2024-05-01: vf_box=0.9974 vf_bmc=1.0000 fp_bmc=1.0000
-2024-05-09: vf_box=0.8416 vf_bmc=0.8727 fp_bmc=1.0000
-2024-05-17: vf_box=0.9426 vf_bmc=0.9972 fp_bmc=1.0000
-2025-03-01: vf_box=0.9953 vf_bmc=0.9960 fp_bmc=1.0000
-2025-03-09: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-03-17: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-03-25: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-04-02: vf_box=0.0015 vf_bmc=0.0000 fp_bmc=0.0000
-2025-04-10: vf_box=0.6085 vf_bmc=0.5894 fp_bmc=1.0000
-2025-04-18: vf_box=0.9904 vf_bmc=0.9889 fp_bmc=1.0000
-2025-04-26: vf_box=0.9647 vf_bmc=0.9965 fp_bmc=1.0000
-2026-03-04: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-03-12: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-03-20: vf_box=0.9975 vf_bmc=0.9968 fp_bmc=1.0000
-2026-03-28: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-04-13: vf_box=0.9928 vf_bmc=0.9887 fp_bmc=1.0000
-2026-04-29: vf_box=0.9998 vf_bmc=1.0000 fp_bmc=1.0000
-2026-05-07: vf_box=0.6730 vf_bmc=0.7753 fp_bmc=1.0000
-2026-05-31: vf_box=0.6849 vf_bmc=0.6733 fp_bmc=1.0000
-Per-date table written to logs\per_date_valid_fraction.txt
+date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
+2024-03-06 0.999934 0.999992 509028 1.000000
+2024-03-14 0.995480 0.994097 509028 1.000000
+2024-03-22 0.999488 0.999929 509028 1.000000
+2024-03-30 0.006731 0.000000 509028 0.000000
+2024-04-07 0.988418 0.999967 509028 1.000000
+2024-04-15 0.999993 1.000000 509028 1.000000
+2024-04-23 0.629222 0.776258 509028 1.000000
+2024-05-01 0.997374 1.000000 509028 1.000000
+2024-05-09 0.841625 0.872671 509028 1.000000
+2024-05-17 0.942639 0.997191 509028 1.000000
+2025-03-01 0.995319 0.995961 509028 1.000000
+2025-03-09 0.999999 1.000000 509028 1.000000
+2025-03-17 0.999967 0.999998 509028 1.000000
+2025-03-25 0.999996 1.000000 509028 1.000000
+2025-04-02 0.001507 0.000000 509028 0.000000
+2025-04-10 0.608486 0.589443 509028 1.000000
+2025-04-18 0.990364 0.988853 509028 1.000000
+2025-04-26 0.964689 0.996458 509028 1.000000
+2026-03-04 0.999959 1.000000 509028 1.000000
+2026-03-12 0.999999 1.000000 509028 1.000000
+2026-03-20 0.997545 0.996829 509028 1.000000
+2026-03-28 0.999990 1.000000 509028 1.000000
+2026-04-13 0.992830 0.988698 509028 1.000000
+2026-04-29 0.999850 0.999998 509028 1.000000
+2026-05-07 0.673044 0.775327 509028 1.000000
+2026-05-31 0.684853 0.673287 509028 1.000000
 ```
 
 ## 2.8 Checks (real numbers)
@@ -251,59 +217,37 @@ emitted by conda and resolved automatically.
 
 ### Per-date validity (logs/round4b_per_date_valid.txt)
 ```
-conda : C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:67: RuntimeWarning: 
-All-NaN slice encountered
-At line:1 char:1
-+ conda run --no-capture-output -n uhi python src/per_date_valid.py > l ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (C:\Users\Aryan\...ice encountered:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-  mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
-BMC pixel count (denominator): 509028
-2024-03-06: vf_box=0.9999 vf_bmc=1.0000 fp_bmc=1.0000
-2024-03-14: vf_box=0.9955 vf_bmc=0.9941 fp_bmc=1.0000
-2024-03-22: vf_box=0.9995 vf_bmc=0.9999 fp_bmc=1.0000
-2024-03-30: vf_box=0.0067 vf_bmc=0.0000 fp_bmc=0.0000
-2024-04-07: vf_box=0.9884 vf_bmc=1.0000 fp_bmc=1.0000
-2024-04-15: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2024-04-23: vf_box=0.6292 vf_bmc=0.7763 fp_bmc=1.0000
-2024-05-01: vf_box=0.9974 vf_bmc=1.0000 fp_bmc=1.0000
-2024-05-09: vf_box=0.8416 vf_bmc=0.8727 fp_bmc=1.0000
-2024-05-17: vf_box=0.9426 vf_bmc=0.9972 fp_bmc=1.0000
-2025-03-01: vf_box=0.9953 vf_bmc=0.9960 fp_bmc=1.0000
-2025-03-09: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-03-17: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-03-25: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2025-04-02: vf_box=0.0015 vf_bmc=0.0000 fp_bmc=0.0000
-2025-04-10: vf_box=0.6085 vf_bmc=0.5894 fp_bmc=1.0000
-2025-04-18: vf_box=0.9904 vf_bmc=0.9889 fp_bmc=1.0000
-2025-04-26: vf_box=0.9647 vf_bmc=0.9965 fp_bmc=1.0000
-2026-03-04: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-03-12: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-03-20: vf_box=0.9975 vf_bmc=0.9968 fp_bmc=1.0000
-2026-03-28: vf_box=1.0000 vf_bmc=1.0000 fp_bmc=1.0000
-2026-04-13: vf_box=0.9928 vf_bmc=0.9887 fp_bmc=1.0000
-2026-04-29: vf_box=0.9998 vf_bmc=1.0000 fp_bmc=1.0000
-2026-05-07: vf_box=0.6730 vf_bmc=0.7753 fp_bmc=1.0000
-2026-05-31: vf_box=0.6849 vf_bmc=0.6733 fp_bmc=1.0000
-Per-date table written to logs\per_date_valid_fraction.txt
+date valid_fraction_box valid_fraction_bmc bmc_pixel_count footprint_fraction_bmc
+2024-03-06 0.999934 0.999992 509028 1.000000
+2024-03-14 0.995480 0.994097 509028 1.000000
+2024-03-22 0.999488 0.999929 509028 1.000000
+2024-03-30 0.006731 0.000000 509028 0.000000
+2024-04-07 0.988418 0.999967 509028 1.000000
+2024-04-15 0.999993 1.000000 509028 1.000000
+2024-04-23 0.629222 0.776258 509028 1.000000
+2024-05-01 0.997374 1.000000 509028 1.000000
+2024-05-09 0.841625 0.872671 509028 1.000000
+2024-05-17 0.942639 0.997191 509028 1.000000
+2025-03-01 0.995319 0.995961 509028 1.000000
+2025-03-09 0.999999 1.000000 509028 1.000000
+2025-03-17 0.999967 0.999998 509028 1.000000
+2025-03-25 0.999996 1.000000 509028 1.000000
+2025-04-02 0.001507 0.000000 509028 0.000000
+2025-04-10 0.608486 0.589443 509028 1.000000
+2025-04-18 0.990364 0.988853 509028 1.000000
+2025-04-26 0.964689 0.996458 509028 1.000000
+2026-03-04 0.999959 1.000000 509028 1.000000
+2026-03-12 0.999999 1.000000 509028 1.000000
+2026-03-20 0.997545 0.996829 509028 1.000000
+2026-03-28 0.999990 1.000000 509028 1.000000
+2026-04-13 0.992830 0.988698 509028 1.000000
+2026-04-29 0.999850 0.999998 509028 1.000000
+2026-05-07 0.673044 0.775327 509028 1.000000
+2026-05-31 0.684853 0.673287 509028 1.000000
 ```
 
 ### Month mix and per-date medians (logs/round4c_month_mix.txt)
 ```
-conda : C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\utils.py:67: RuntimeWarning: 
-All-NaN slice encountered
-At line:1 char:1
-+ conda run --no-capture-output -n uhi python src/month_mix.py > logs/r ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (C:\Users\Aryan\...ice encountered:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-  mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
-C:\Users\Aryan\Desktop\College_Files\SY\My_Notes\My_Projects\mumbai-uhi\src\month_mix.py:153: RuntimeWarning: All-NaN 
-slice encountered
-  month_comp = np.nanmedian(month_stack, axis=0)  # already Celsius
 Per-date BMC land median LST (all 26 dates):
   2024-03-06: median LST=36.56 C n_land=494793
   2024-03-14: median LST=36.38 C n_land=491819
@@ -372,9 +316,9 @@ Per-date BMC land medians:
   2026-05-31: 39.96 C (n_land=332879)
 
 Pooled monthly medians across years (all dates of that month):
-  Mar: pooled (per-pixel over all dates)=38.92 C median-of-per-date-medians=39.02 C (n months with data=11)
-  Apr: pooled (per-pixel over all dates)=41.57 C median-of-per-date-medians=41.58 C (n months with data=8)
-  May: pooled (per-pixel over all dates)=40.06 C median-of-per-date-medians=39.96 C (n months with data=5)
+  Mar: pooled (per-pixel over all dates)=38.92 C median-of-per-date-medians=39.47 C (n months with data=3)
+  Apr: pooled (per-pixel over all dates)=41.57 C median-of-per-date-medians=41.13 C (n months with data=3)
+  May: pooled (per-pixel over all dates)=40.06 C median-of-per-date-medians=40.06 C (n months with data=2)
 
 May 2025 STAC search (any cloud cover):
   Without cloud filter: 8 scenes
@@ -390,7 +334,7 @@ May 2025 STAC search (any cloud cover):
 ```
 
 ### Old versus v2 (logs/round4c_old_vs_v2.txt)
-Result: identical, mechanism not tested.
+Result: identical, mechanism not tested (overlap fraction never measured).
 ```
 valid_count inside BMC:
   old: min=14.0 median=23.0 max=24.0
@@ -484,4 +428,3 @@ d. BMC land pixels with valid_count < 18: 11
   lon range: 72.808785 to 72.907101
   lat range: 18.958011 to 19.025049
 ```
-

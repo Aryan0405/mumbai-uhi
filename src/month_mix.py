@@ -23,7 +23,9 @@ from collections import defaultdict
 
 sys.path.insert(0, "src")
 import config
-from utils import build_date_mosaic
+from utils import build_date_mosaic, write_log, silence_all_nan_warning
+
+silence_all_nan_warning()
 
 CACHE_DIR = "data/landsat/cache"
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
@@ -112,7 +114,8 @@ def main():
     for d in dates:
         dates_by_ym[(int(d[:4]), int(d[5:7]))].append(d)
 
-    print("Per-date BMC land median LST (all 26 dates):")
+    lines = []
+    lines.append("Per-date BMC land median LST (all 26 dates):")
     per_date = {}
     for d in dates:
         scenes = []
@@ -126,9 +129,10 @@ def main():
         n_land = int(bmc_land.size)
         per_date[d] = {"med": med, "n_land": n_land, "lst": date_lst}
         med_s = f"{med:.2f}" if med is not None else "N/A"
-        print(f"  {d}: median LST={med_s} C n_land={n_land}")
+        lines.append(f"  {d}: median LST={med_s} C n_land={n_land}")
 
-    print("\nMonth mix (n dates, BMC land median LST, effective dates, min/max/IQR):")
+    lines.append("\nMonth mix (n dates, BMC land median LST, effective dates, "
+                 "min/max/IQR):")
     monthly_meds = {"Mar": [], "Apr": [], "May": []}  # per-date medians
     monthly_lst = {"Mar": [], "Apr": [], "May": []}   # per-date arrays (pooled)
     for y in sorted(config.WINDOW_B):
@@ -136,8 +140,8 @@ def main():
             ds = sorted(dates_by_ym.get((y, m), []))
             month_name = {3: "Mar", 4: "Apr", 5: "May"}[m]
             if not ds:
-                print(f"  {y}-{m:02d}: 0 dates [] median LST=N/A effective dates=0 "
-                      f"min=N/A max=N/A IQR=N/A")
+                lines.append(f"  {y}-{m:02d}: 0 dates [] median LST=N/A "
+                             f"effective dates=0 min=N/A max=N/A IQR=N/A")
                 continue
             date_lst_list = []
             date_medians = []
@@ -148,7 +152,6 @@ def main():
                 if entry["n_land"] > 0:
                     effective_dates += 1
                     date_medians.append(entry["med"])
-                    monthly_meds[month_name].append(entry["med"])
             month_stack = np.stack(date_lst_list, axis=0)
             month_comp = np.nanmedian(month_stack, axis=0)  # already Celsius
             lst = month_comp
@@ -166,18 +169,20 @@ def main():
             mn_s = f"{mn:.2f}" if mn is not None else "N/A"
             mx_s = f"{mx:.2f}" if mx is not None else "N/A"
             iqr_s = f"{iqr:.2f}" if iqr is not None else "N/A"
-            print(f"  {y}-{m:02d}: {len(ds)} dates median LST={med_s} C "
-                  f"effective dates={effective_dates} min={mn_s} max={mx_s} IQR={iqr_s}")
-
+            lines.append(f"  {y}-{m:02d}: {len(ds)} dates median LST={med_s} C "
+                         f"effective dates={effective_dates} min={mn_s} "
+                         f"max={mx_s} IQR={iqr_s}")
+            if med is not None:
+                monthly_meds[month_name].append(med)
             monthly_lst[month_name].extend(date_lst_list)
 
-    print("\nPer-date BMC land medians:")
+    lines.append("\nPer-date BMC land medians:")
     for d in dates:
         entry = per_date[d]
         med_s = f"{entry['med']:.2f}" if entry["med"] is not None else "N/A"
-        print(f"  {d}: {med_s} C (n_land={entry['n_land']})")
+        lines.append(f"  {d}: {med_s} C (n_land={entry['n_land']})")
 
-    print("\nPooled monthly medians across years (all dates of that month):")
+    lines.append("\nPooled monthly medians across years (all dates of that month):")
     for mname in ("Mar", "Apr", "May"):
         meds = [v for v in monthly_meds[mname] if v is not None]
         pooled_lst = np.nanmedian(np.stack(monthly_lst[mname], axis=0), axis=0)
@@ -187,29 +192,33 @@ def main():
         med_of_meds = (float(np.median(meds)) if meds else None)
         meds_s = f"{med_of_meds:.2f}" if med_of_meds is not None else "N/A"
         pooled_s = f"{pooled_med:.2f}" if pooled_med is not None else "N/A"
-        print(f"  {mname}: pooled (per-pixel over all dates)={pooled_s} C "
-              f"median-of-per-date-medians={meds_s} C "
-              f"(n months with data={len(meds)})")
+        lines.append(f"  {mname}: pooled (per-pixel over all dates)={pooled_s} C "
+                     f"median-of-per-date-medians={meds_s} C "
+                     f"(n months with data={len(meds)})")
 
     # May 2025 STAC search only (no downloads)
-    print("\nMay 2025 STAC search (any cloud cover):")
+    lines.append("\nMay 2025 STAC search (any cloud cover):")
     catalog = Client.open(config.CATALOG_URL)
     search_any = catalog.search(
         collections=[config.COLLECTION], intersects=SEARCH_BOX,
         datetime="2025-05-01/2025-05-31", limit=None,
     )
     items_any = list(search_any.item_collection())
-    print(f"  Without cloud filter: {len(items_any)} scenes")
+    lines.append(f"  Without cloud filter: {len(items_any)} scenes")
     for it in items_any:
-        print(f"    {it.id} platform={it.properties.get('platform')} "
-              f"cloud={it.properties.get('eo:cloud_cover')}")
+        lines.append(f"    {it.id} platform={it.properties.get('platform')} "
+                     f"cloud={it.properties.get('eo:cloud_cover')}")
     search_10 = catalog.search(
         collections=[config.COLLECTION], intersects=SEARCH_BOX,
         datetime="2025-05-01/2025-05-31",
         query={"eo:cloud_cover": {"lt": 10}}, limit=None,
     )
     items_10 = list(search_10.item_collection())
-    print(f"  With cloud < 10 percent filter: {len(items_10)} scenes")
+    lines.append(f"  With cloud < 10 percent filter: {len(items_10)} scenes")
+
+    log_path = os.path.join(config.DIR_LOGS, "round4c_month_mix.txt")
+    write_log(log_path, "\n".join(lines))
+    print(log_path)
 
 
 if __name__ == "__main__":
