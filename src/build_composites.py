@@ -1,7 +1,9 @@
 """Phase 2 build composites: load (rasterio, signed per batch), mosaic, mask,
-indices, median composite, write GeoTIFFs (EPSG:32643, 30 m), per-date table,
-checks. stackstac is listed in environment.yml but rasterio is used directly
-because stackstac 0.5.0 is incompatible with numpy 2.x (np.can_cast).
+indices, median composite, write GeoTIFFs (EPSG:32643, 30 m), checks.
+Loading uses rasterio directly because stackstac 0.5.0 is incompatible with
+numpy 2.x (np.can_cast).
+Validity uses the shared function in src/utils.py: finite(lwir) AND QA bits
+0-4 clear. Date-level mask is the UNION of per-scene validity.
 """
 import os
 import time
@@ -17,6 +19,8 @@ from pystac_client import Client
 from rasterio.warp import reproject, Resampling, transform
 from rasterio.transform import from_origin
 import rasterio.features
+
+from utils import compute_validity
 
 import config
 
@@ -49,8 +53,7 @@ _bmc = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
 BMC_MASK = rio_rasterize(
     [shp_mapping(g) for g in _bmc.geometry],
     out_shape=(TARGET_HEIGHT, TARGET_WIDTH),
-    transform=TARGET_TRANSFORM,
-    fill=0, default_value=1, dtype="uint8",
+    transform=TARGET_TRANSFORM, fill=0, default_value=1, dtype="uint8",
 ).astype(bool)
 print(f"BMC mask pixels: {int(BMC_MASK.sum())} of {BMC_MASK.size}")
 
@@ -122,37 +125,41 @@ def load_asset(it, asset_name):
 
 
 def load_date(date, items):
+    """Load one date. Validity: shared function, UNION across scenes of the date.
+
+    For each scene: load lwir11 (raw DN) and qa_pixel, compute per-scene
+    validity with compute_validity. Date validity = np.any across scenes
+    (a pixel is valid for the date if valid in any scene).
+    Mosaic lwir11 via nanmedian across scenes, then apply date validity.
+    Apply scale/offset to all output bands.
+    """
     signed, bytes_est = sign_batch(items)
     so = read_scale_offset(signed)
-    # Mosaic scenes of this date: stack scene arrays, nanmedian over scenes.
-    scene_arrays = []
+    scene_lwir = []
+    scene_valid = []
     for it in signed:
-        bands = {}
-        for asset_name in config.ASSETS:
-            bands[asset_name] = load_asset(it, asset_name)
-        scene_arrays.append(bands)
+        lwir = load_asset(it, "lwir11")          # raw DN, float32, NaN = missing
+        qa = load_asset(it, "qa_pixel")          # raw QA, float32, NaN = missing
+        scene_lwir.append(lwir)
+        scene_valid.append(compute_validity(lwir, qa))
+    date_valid = np.any(np.stack(scene_valid, axis=0), axis=0)
+    # Mosaic lwir11 across scenes (nanmedian), then apply date validity.
+    lwir_mosaic = np.nanmedian(np.stack(scene_lwir, axis=0), axis=0)
+    lwir_mosaic = np.where(date_valid, lwir_mosaic, np.nan)
     band_names = [b for b in config.ASSETS if b != "qa_pixel"]
-    out = {}
+    out = {"lwir11": lwir_mosaic}
     for bname in band_names:
-        stack = np.stack([sa[bname] for sa in scene_arrays], axis=0)
+        if bname == "lwir11":
+            continue
+        stack = np.stack([load_asset(it, bname) for it in signed], axis=0)
         out[bname] = np.nanmedian(stack, axis=0)
-    # QA mask from qa_pixel (mosaic scenes: any scene cloudy -> mask)
-    qa_stack = np.stack([sa["qa_pixel"] for sa in scene_arrays], axis=0)
-    qa_mosaic = np.nanmedian(qa_stack, axis=0)
-    valid = np.ones((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
-    qa_i = np.nan_to_num(qa_mosaic, nan=0).astype(np.uint16)
-    valid &= ((qa_i >> config.QA_BIT_FILL) & 1) == 0
-    for bit in config.QA_MASK_BITS:
-        valid &= ((qa_i >> bit) & 1) == 0
-    # lwir11 fill DN==0 -> invalid
-    valid &= out["lwir11"] != 0
+        out[bname] = np.where(date_valid, out[bname], np.nan)
     # Apply scale/offset
     for bname in band_names:
         s = so[bname]["scale"]; o = so[bname]["offset"]
         out[bname] = out[bname] * s + o
-        out[bname] = np.where(valid, out[bname], np.nan)
-    valid_frac = float(np.mean(valid))
-    valid_frac_bmc = float(np.mean(valid & BMC_MASK)) if BMC_MASK.any() else float("nan")
+    valid_frac = float(np.mean(date_valid))
+    valid_frac_bmc = float(np.mean(date_valid & BMC_MASK)) if BMC_MASK.any() else float("nan")
     arr = np.stack([out[b] for b in band_names], axis=0)  # (band, y, x)
     return arr, band_names, valid_frac, valid_frac_bmc, bytes_est
 
@@ -210,13 +217,6 @@ def main():
                        "w", **vprofile) as dst:
         dst.write(vcount.astype("float32"), 1)
     print(f"Wrote {len(bands)} composite GeoTIFFs + valid_count to {config.DIR_COMPOSITES}")
-    # ---- Per-date table ----
-    table_path = os.path.join(LOGS, "per_date_valid_fraction.txt")
-    with open(table_path, "w") as f:
-        f.write("date valid_fraction_box valid_fraction_bmc\n")
-        for d, vf, vf_bmc in vf_table:
-            f.write(f"{d} {vf:.6f} {vf_bmc:.6f}\n")
-    print(f"Per-date table written to {table_path}")
     # NDVI band range check (nir band values are reflectance)
     ni = bands.index("nir08")
     print(f"NIR band min={float(np.nanmin(composite[ni])):.3f} "

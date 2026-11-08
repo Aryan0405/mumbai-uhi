@@ -1,8 +1,19 @@
-"""Regenerate per_date_valid_fraction.txt with BMC column as fraction of
-BMC pixels valid (denominator = BMC pixel count). Reuses disk cache; no
-re-download of cached scenes.
+"""Regenerate logs/per_date_valid_fraction.txt using the shared validity
+function (src/utils.compute_validity) with UNION of per-scene validity per
+date. Columns: date, valid_fraction_box, valid_fraction_bmc,
+bmc_pixel_count, footprint_fraction_bmc.
+
+valid_fraction_box   = fraction of box pixels valid for the date (union of
+                       per-scene validity).
+valid_fraction_bmc   = fraction of BMC pixels valid for the date (denominator
+                       = bmc_pixel_count).
+footprint_fraction_bmc = fraction of BMC pixels with finite lwir11 on that
+                       date, BEFORE QA masking (union of finite lwir across
+                       scenes).
+Reuses disk cache; no re-download of cached scenes.
 """
 import os
+import sys
 import numpy as np
 import planetary_computer as pc
 import rasterio
@@ -13,7 +24,9 @@ from rasterio.features import rasterize as rio_rasterize
 from shapely.geometry import box as shp_box, mapping as shp_mapping
 import geopandas as gpd
 
+sys.path.insert(0, "src")
 import config
+from utils import compute_validity
 
 CACHE_DIR = "data/landsat/cache"
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
@@ -79,26 +92,25 @@ def main():
     dates = sorted(by_date)
     rows = []
     for d in dates:
-        vf_box_list, vf_bmc_list = [], []
+        date_valid_union = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
+        date_finite_union = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
         for it in by_date[d]:
-            qa = load_asset_cached(it, "qa_pixel")
             lwir = load_asset_cached(it, "lwir11")
-            valid = (lwir != 0)
-            qai = np.nan_to_num(qa, nan=0).astype(np.uint16)
-            valid &= ((qai >> 0) & 1) == 0
-            for b in (1, 2, 3, 4):
-                valid &= ((qai >> b) & 1) == 0
-            vf_box_list.append(float(np.mean(valid)))
-            vf_bmc_list.append(float(np.sum(valid & BMC_MASK) / BMC_PIXEL_COUNT))
-        vf_box = float(np.max(vf_box_list)) if vf_box_list else 0.0
-        vf_bmc = float(np.max(vf_bmc_list)) if vf_bmc_list else 0.0
-        rows.append((d, vf_box, vf_bmc, BMC_PIXEL_COUNT))
-        print(f"{d}: vf_box={vf_box:.4f} vf_bmc={vf_bmc:.4f}")
+            qa = load_asset_cached(it, "qa_pixel")
+            date_valid_union |= compute_validity(lwir, qa)
+            date_finite_union |= np.isfinite(lwir)
+        vf_box = float(np.mean(date_valid_union))
+        vf_bmc = float(np.sum(date_valid_union & BMC_MASK) / BMC_PIXEL_COUNT)
+        fp_bmc = float(np.sum(date_finite_union & BMC_MASK) / BMC_PIXEL_COUNT)
+        rows.append((d, vf_box, vf_bmc, BMC_PIXEL_COUNT, fp_bmc))
+        print(f"{d}: vf_box={vf_box:.4f} vf_bmc={vf_bmc:.4f} "
+              f"fp_bmc={fp_bmc:.4f}")
     table_path = os.path.join(config.DIR_LOGS, "per_date_valid_fraction.txt")
     with open(table_path, "w") as f:
-        f.write("date valid_fraction_box valid_fraction_bmc bmc_pixel_count\n")
-        for d, vb, vbmc, bpc in rows:
-            f.write(f"{d} {vb:.6f} {vbmc:.6f} {bpc}\n")
+        f.write("date valid_fraction_box valid_fraction_bmc "
+                "bmc_pixel_count footprint_fraction_bmc\n")
+        for d, vb, vbmc, bpc, fpb in rows:
+            f.write(f"{d} {vb:.6f} {vbmc:.6f} {bpc} {fpb:.6f}\n")
     print(f"Per-date table written to {table_path}")
 
 

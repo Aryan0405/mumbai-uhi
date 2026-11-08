@@ -12,6 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import config
+from utils import ndvi as utils_ndvi, ndbi as utils_ndbi, ndwi as utils_ndwi
 
 DIR_COMP = config.DIR_COMPOSITES
 LOGS = config.DIR_LOGS
@@ -35,10 +36,12 @@ def write_band(name, arr, transform, crs):
 
 def quicklook(name, arr, vmin, vmax, cmap, label, extent=None, bmc4326=None,
               mask_nan=True):
-    fig, ax = plt.subplots(figsize=(7, 6))
+    H, W = arr.shape
+    aspect = W / H
+    fig, ax = plt.subplots(figsize=(6 * max(aspect, 1.0), 6 * max(1.0 / aspect, 1.0)))
     show = np.where(np.isnan(arr), np.nan, arr) if mask_nan else arr
     im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent,
-                   origin="upper", aspect="auto")
+                   origin="upper", aspect="equal")
     ax.set_title(f"{label} (masked)")
     ax.set_axis_off()
     if bmc4326 is not None:
@@ -75,9 +78,9 @@ def main():
         vcount = src.read(1).astype("float64")
 
     # ---- Indices ----
-    ndvi = (nir - red) / (nir + red)
-    ndbi = (swir - nir) / (swir + nir)
-    ndwi = (green - nir) / (green + nir)
+    ndvi = utils_ndvi(nir, red)
+    ndbi = utils_ndbi(swir, nir)
+    ndwi = utils_ndwi(green, nir)
     write_band("ndvi", ndvi, tf, crs)
     write_band("ndbi", ndbi, tf, crs)
     write_band("ndwi", ndwi, tf, crs)
