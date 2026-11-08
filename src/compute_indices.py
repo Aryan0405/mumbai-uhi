@@ -37,7 +37,8 @@ def quicklook(name, arr, vmin, vmax, cmap, label, extent=None, bmc4326=None,
               mask_nan=True):
     fig, ax = plt.subplots(figsize=(7, 6))
     show = np.where(np.isnan(arr), np.nan, arr) if mask_nan else arr
-    im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin="upper")
+    im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent,
+                   origin="upper", aspect="auto")
     ax.set_title(f"{label} (masked)")
     ax.set_axis_off()
     if bmc4326 is not None:
@@ -137,14 +138,17 @@ def main():
     H, W = lwir.shape
     extent = (tf.c, tf.c + tf.a * W, tf.f + tf.e * H, tf.f)
     bmc32643 = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
+    vcount_min = float(np.nanmin(vcount))
+    vcount_max = float(np.nanmax(vcount))
     quicklook("lst_composite", lst, 15, 50, "hot", "LST composite", extent=extent,
               bmc4326=bmc32643)
     quicklook("ndvi", ndvi, -1, 1, "RdYlGn", "NDVI", extent=extent,
               bmc4326=bmc32643)
     quicklook("ndbi", ndbi, -1, 1, "RdYlBu_r", "NDBI", extent=extent,
               bmc4326=bmc32643)
-    quicklook("valid_count", vcount, 0, 26, "YlGn", "Valid observation count",
-              extent=extent, bmc4326=bmc32643)
+    quicklook("valid_count", vcount, vcount_min, vcount_max, "YlGn",
+              "Valid observation count", extent=extent, bmc4326=bmc32643)
+    print(f"Valid count colorbar range: {vcount_min} to {vcount_max}")
     print("Quicklook PNGs written to logs/")
 
 

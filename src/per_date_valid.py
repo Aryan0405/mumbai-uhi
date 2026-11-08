@@ -1,6 +1,6 @@
-"""Per-date valid fraction (box + inside BMC), computed from qa_pixel + lwir11
-per scene per date, with disk caching so re-runs are fast. Writes
-logs/per_date_valid_fraction.txt: date valid_fraction_box valid_fraction_bmc.
+"""Regenerate per_date_valid_fraction.txt with BMC column as fraction of
+BMC pixels valid (denominator = BMC pixel count). Reuses disk cache; no
+re-download of cached scenes.
 """
 import os
 import numpy as np
@@ -16,7 +16,6 @@ import geopandas as gpd
 import config
 
 CACHE_DIR = "data/landsat/cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
                      config.BOX["lon_max"], config.BOX["lat_max"])
 
@@ -30,14 +29,14 @@ TARGET_TRANSFORM = from_origin(MINX, MAXY, 30.0, 30.0)
 TARGET_WIDTH = int(round((MAXX - MINX) / 30.0))
 TARGET_HEIGHT = int(round((MAXY - MINY) / 30.0))
 
-# Dissolved BMC polygon, reprojected to EPSG:32643 before rasterizing.
 _bmc = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
 BMC_MASK = rio_rasterize(
     [shp_mapping(g) for g in _bmc.geometry],
     out_shape=(TARGET_HEIGHT, TARGET_WIDTH),
     transform=TARGET_TRANSFORM, fill=0, default_value=1, dtype="uint8",
 ).astype(bool)
-print(f"BMC mask pixels: {int(BMC_MASK.sum())} of {BMC_MASK.size}")
+BMC_PIXEL_COUNT = int(BMC_MASK.sum())
+print(f"BMC pixel count (denominator): {BMC_PIXEL_COUNT}")
 
 
 def search_window_b():
@@ -65,15 +64,11 @@ def load_asset_cached(it, asset_name):
     with rasterio.open(href) as src:
         dst = np.empty((TARGET_HEIGHT, TARGET_WIDTH), dtype="float32")
         reproject(
-            source=rasterio.band(src, 1),
-            destination=dst,
-            src_transform=src.transform,
-            src_crs=src.crs,
-            dst_transform=TARGET_TRANSFORM,
-            dst_crs=config.CRS_METRIC,
+            source=rasterio.band(src, 1), destination=dst,
+            src_transform=src.transform, src_crs=src.crs,
+            dst_transform=TARGET_TRANSFORM, dst_crs=config.CRS_METRIC,
             resampling=Resampling.nearest,
-            src_nodata=src.nodata,
-            dst_nodata=np.nan,
+            src_nodata=src.nodata, dst_nodata=np.nan,
         )
     np.save(path, dst)
     return dst
@@ -94,16 +89,16 @@ def main():
             for b in (1, 2, 3, 4):
                 valid &= ((qai >> b) & 1) == 0
             vf_box_list.append(float(np.mean(valid)))
-            vf_bmc_list.append(float(np.mean(valid & BMC_MASK)))
+            vf_bmc_list.append(float(np.sum(valid & BMC_MASK) / BMC_PIXEL_COUNT))
         vf_box = float(np.max(vf_box_list)) if vf_box_list else 0.0
         vf_bmc = float(np.max(vf_bmc_list)) if vf_bmc_list else 0.0
-        rows.append((d, vf_box, vf_bmc))
+        rows.append((d, vf_box, vf_bmc, BMC_PIXEL_COUNT))
         print(f"{d}: vf_box={vf_box:.4f} vf_bmc={vf_bmc:.4f}")
     table_path = os.path.join(config.DIR_LOGS, "per_date_valid_fraction.txt")
     with open(table_path, "w") as f:
-        f.write("date valid_fraction_box valid_fraction_bmc\n")
-        for d, vb, vbmc in rows:
-            f.write(f"{d} {vb:.6f} {vbmc:.6f}\n")
+        f.write("date valid_fraction_box valid_fraction_bmc bmc_pixel_count\n")
+        for d, vb, vbmc, bpc in rows:
+            f.write(f"{d} {vb:.6f} {vbmc:.6f} {bpc}\n")
     print(f"Per-date table written to {table_path}")
 
 
