@@ -8,8 +8,8 @@ Reads data/composites/ (read only). Per 500 m cell, by pixel centre:
     n_land_px   = count of land_px per cell (differs from n_bmc_px where water exists)
     bmc_fraction = n_bmc_px / n_grid_px (NaN if n_grid_px == 0)
     land_share   = n_land_px / n_bmc_px (NaN if n_bmc_px == 0)
-    bmc_area_km2 = n_bmc_px * 900 / 1e6
-    land_area_km2 = n_land_px * 900 / 1e6
+    bmc_area_km2 = 0.25 * n_bmc_px / n_grid_px (NaN if n_grid_px == 0)
+    land_area_km2 = 0.25 * n_land_px / n_grid_px (NaN if n_grid_px == 0)
 On land_px only: LST mean, median, std (C, ddof=1); NDVI mean; NDBI mean;
 valid_count min and median; share of land pixels with valid_count <= 20.
 Empty cells get NaN, never 0.
@@ -19,7 +19,9 @@ pop / land_area_km2, pop_density_full = pop / 0.25 (people per km2; NaN where
 the denominator is 0).
 Flags (report only, drop nothing; all False outside BMC):
     partial_bmc (bmc_fraction < 0.5), water_dominated (land_share < 0.5),
-    low_obs (cell median valid_count < 3), no_pop (population == 0).
+    low_obs (cell median valid_count < 3), no_pop (population == 0),
+    thin_obs (cell median valid_count <= 20).
+core = in_bmc AND NOT partial_bmc AND NOT water_dominated.
 core = in_bmc AND NOT partial_bmc AND NOT water_dominated.
 Cells with n_bmc_px == 0 are outside BMC: reported separately and excluded
 from every flag count.
@@ -108,8 +110,10 @@ def main():
 
     bmc_fraction = _safe_divide(n_bmc_px, n_grid_px)
     land_share = _safe_divide(n_land_px, n_bmc_px)
-    bmc_area_km2 = n_bmc_px * PIXEL_AREA_M2 / 1e6
-    land_area_km2 = n_land_px * PIXEL_AREA_M2 / 1e6
+    # Footprint-based areas (cells hold 256, 272 or 289 pixels, so pixel-count
+    # areas are biased by grid position).
+    bmc_area_km2 = _safe_divide(0.25 * n_bmc_px, n_grid_px)
+    land_area_km2 = _safe_divide(0.25 * n_land_px, n_grid_px)
 
     # Stats on land pixels only, via pandas groupby (no per-cell Python loop).
     land_ids = flat_cell_id[flat_land & use]
@@ -120,6 +124,8 @@ def main():
         "ndbi": ndbi.ravel()[flat_land & use],
         "vc": vcount.ravel()[flat_land & use],
     })
+    # Vectorised boolean column summed in the groupby (no lambda).
+    df_land["vc_le20"] = df_land["vc"] <= 20.0
     g = df_land.groupby("cid")
     agg = g.agg(lst_mean=("lst", "mean"),
                 lst_median=("lst", "median"),
@@ -128,7 +134,7 @@ def main():
                 ndbi_mean=("ndbi", "mean"),
                 vc_min=("vc", "min"),
                 vc_median=("vc", "median"),
-                vc_le20_count=("vc", lambda s: int((s <= 20).sum())))
+                vc_le20_count=("vc_le20", "sum"))
     agg = agg.sort_index()
     cids = agg.index.to_numpy(dtype=np.int64)
 
@@ -175,7 +181,8 @@ def main():
     water_dominated = (land_share < 0.5) & in_bmc
     low_obs = (vc_med < 3.0) & in_bmc
     no_pop = (pop == 0.0) & in_bmc
-    any_flag = partial_bmc | water_dominated | low_obs | no_pop
+    thin_obs = in_bmc & (vc_med <= 20.0)
+    any_flag = partial_bmc | water_dominated | low_obs | no_pop | thin_obs
 
     def count_bmc(mask):
         return int((mask & in_bmc).sum())
@@ -184,8 +191,11 @@ def main():
     n_water_dominated = count_bmc(water_dominated)
     n_low_obs = count_bmc(low_obs)
     n_no_pop = count_bmc(no_pop)
+    n_thin_obs = count_bmc(thin_obs)
     n_any_flag = count_bmc(any_flag)
     n_no_flags = int((in_bmc & (~any_flag)).sum())
+    land_with_data = in_bmc & (n_land_px > 0)
+    min_vc_med_land = float(np.min(vc_med[land_with_data])) if int(land_with_data.sum()) else np.nan
 
     core = in_bmc & (~partial_bmc) & (~water_dominated)
     n_core = int(core.sum())
@@ -193,6 +203,7 @@ def main():
 
     # Max bmc_fraction must be at most 1.0.
     max_bmc_fraction = float(np.nanmax(bmc_fraction[in_bmc])) if int(in_bmc.sum()) else np.nan
+    max_bmc_area = float(np.nanmax(bmc_area_km2[in_bmc])) if int(in_bmc.sum()) else np.nan
     max_grid_px = int(n_grid_px[in_bmc].max()) if int(in_bmc.sum()) else 0
     n_bmc_below_full = int(((in_bmc) & (n_grid_px < max_grid_px)).sum()) if int(in_bmc.sum()) else 0
 
@@ -255,6 +266,7 @@ def main():
         "water_dominated": water_dominated,
         "low_obs": low_obs,
         "no_pop": no_pop,
+        "thin_obs": thin_obs,
         "core": core,
         "cell_minx": minx + (np.arange(n_cells) % n_cols) * CELL_SIZE,
         "cell_maxy": maxy - (np.arange(n_cells) // n_cols) * CELL_SIZE,
@@ -353,10 +365,11 @@ def main():
         f"  n_grid_px distribution among BMC cells (value counts):",
         f"    {df_in_bmc['n_grid_px'].value_counts().sort_index().to_string()}",
         f"  Max bmc_fraction among BMC cells = {max_bmc_fraction:.6f} (must be <= 1.0)",
+        f"  Max bmc_area_km2 among BMC cells = {max_bmc_area:.6f} (must be <= 0.25)",
         f"  Max n_grid_px (full-cell count) among BMC cells = {max_grid_px}",
         f"  BMC cells with n_grid_px below full-cell count = {n_bmc_below_full}",
         f"",
-        f"  Areas: bmc_area_km2 = n_bmc_px * 900 / 1e6; land_area_km2 = n_land_px * 900 / 1e6",
+        f"  Areas: bmc_area_km2 = 0.25 * n_bmc_px / n_grid_px; land_area_km2 = 0.25 * n_land_px / n_grid_px",
         f"  Densities (people per km2): pop_density_bmc, pop_density_land, pop_density_full (= pop / 0.25)",
         f"  BMC cells with pop > 0: {n_pop_pos_bmc}",
         f"    pop_density_bmc: max={max_density_bmc:.4f}, median={med_density_bmc:.4f}",
@@ -374,6 +387,8 @@ def main():
         f"    core (in_bmc AND NOT partial_bmc AND NOT water_dominated): {n_core}",
         f"    in_bmc cells that are no_pop and not in core: {n_in_bmc_no_pop_not_core}",
         f"    low_obs fired {n_low_obs} time(s).",
+        f"    thin_obs (cell median valid_count <= 20): {n_thin_obs}",
+        f"    min vc_median among in_bmc cells with land: {min_vc_med_land}",
         f"",
         f"  lst_std uses pandas groupby std with ddof=1 (sample std).",
         f"  BMC cells with n_land_px == 1 (lst_std NaN there): {n_land_eq1}",
