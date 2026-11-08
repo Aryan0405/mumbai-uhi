@@ -148,6 +148,7 @@ def main():
                 if entry["n_land"] > 0:
                     effective_dates += 1
                     date_medians.append(entry["med"])
+                    monthly_meds[month_name].append(entry["med"])
             month_stack = np.stack(date_lst_list, axis=0)
             month_comp = np.nanmedian(month_stack, axis=0)  # already Celsius
             lst = month_comp
@@ -167,8 +168,7 @@ def main():
             iqr_s = f"{iqr:.2f}" if iqr is not None else "N/A"
             print(f"  {y}-{m:02d}: {len(ds)} dates median LST={med_s} C "
                   f"effective dates={effective_dates} min={mn_s} max={mx_s} IQR={iqr_s}")
-            if med is not None:
-                monthly_meds[month_name].append(med)
+
             monthly_lst[month_name].extend(date_lst_list)
 
     print("\nPer-date BMC land medians:")
