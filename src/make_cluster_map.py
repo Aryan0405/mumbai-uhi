@@ -67,6 +67,8 @@ def main():
 
     cmap = plt.get_cmap("tab10").copy()
     cmap.set_bad(color="white")
+    rgb0 = tuple(int(round(255 * x)) for x in cmap.colors[0][:3])
+    rgb1 = tuple(int(round(255 * x)) for x in cmap.colors[1][:3])
 
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     im = ax.imshow(grid, origin="upper", extent=extent, vmin=0, vmax=9, cmap=cmap)
@@ -88,7 +90,7 @@ def main():
         members = labels == k_id
         cnt = int(members.sum())
         mean_lst = float(df.loc[analysis, "lst_mean"].to_numpy(dtype=np.float64)[members].mean())
-        handles.append(mpatches.Patch(color=cmap(k_id),
+        handles.append(mpatches.Patch(color=cmap.colors[k_id],
                                       label="cluster %d: %d cells, mean LST %.2f C" % (k_id, cnt, mean_lst)))
     handles.append(mpatches.Patch(color="white", label="Outside BMC (white)"))
     handles.append(mpatches.Patch(color="grey", label="In BMC, not core (grey)"))
@@ -102,6 +104,9 @@ def main():
     lines = []
     lines.append("Wrote " + OUT_PNG + " (" + str(w) + "x" + str(h) + " pixels)")
     lines.append("Colours: tab10 cluster 0 and 1; outside BMC white; in BMC not core grey")
+    lines.append("Colours: tab10 index 0 RGB=%s (cluster 0), tab10 index 1 RGB=%s "
+                 "(cluster 1); outside BMC white; in BMC not core grey" %
+                 (str(rgb0), str(rgb1)))
     text = "\n".join(lines) + "\n"
     with open(os.path.join(LOG_DIR, "phase3b_map.txt"), "w", encoding="utf-8") as f:
         f.write(text)

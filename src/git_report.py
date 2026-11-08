@@ -14,7 +14,7 @@ def main():
         ["git", "log", "--format=%h %s", "-5"],
         capture_output=True, text=True,
     )
-    parts.append("git log --format=%%h %%s -5")
+    parts.append("git log --format=%h %s -5")
     parts.append("exit code: " + str(p1.returncode))
     parts.append(p1.stdout)
     if p1.stderr:

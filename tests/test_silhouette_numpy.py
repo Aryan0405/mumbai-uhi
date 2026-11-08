@@ -22,11 +22,6 @@ from silhouette_numpy import silhouette_score
 
 def test_two_clusters_two_points_one_dimension():
     # Points in 1D: [0.0, 0.1] in cluster 0, [10.0, 10.1] in cluster 1.
-    # For point 0.0: a = 0.1 (mean distance within cluster 0).
-    # b = mean distance to cluster 1 = (10.0 + 10.1) / 2 = 10.05.
-    # s = (b - a) / max(a, b) = (10.05 - 0.1) / 10.05 = 9.95 / 10.05
-    #   = 0.9900497512437811. All four points have the same silhouette by
-    #   symmetry, so the mean is 0.9900497512437811.
     X = np.array([[0.0], [0.1], [10.0], [10.1]])
     labels = np.array([0, 0, 1, 1])
     # Hand-computed working:
