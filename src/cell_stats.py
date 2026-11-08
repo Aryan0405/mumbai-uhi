@@ -1,25 +1,31 @@
-"""Phase 3A round R3: cell statistics on the 500 m grid (vectorised).
+"""Phase 3A round R2: cell statistics on the 500 m grid (vectorised).
 
 Reads data/composites/ (read only). Per 500 m cell, by pixel centre:
     bmc_px      = BMC mask
     land_px     = BMC mask AND NDWI <= 0 AND finite LST
+    n_grid_px   = count of all 30 m pixel centres assigned to the cell (in_range only)
     n_bmc_px    = count of bmc_px per cell
     n_land_px   = count of land_px per cell (differs from n_bmc_px where water exists)
-    bmc_fraction = n_bmc_px / (500 * 500 / 900)
+    bmc_fraction = n_bmc_px / n_grid_px (NaN if n_grid_px == 0)
     land_share   = n_land_px / n_bmc_px (NaN if n_bmc_px == 0)
-On land_px only: LST mean, median, std (C); NDVI mean; NDBI mean;
+    bmc_area_km2 = n_bmc_px * 900 / 1e6
+    land_area_km2 = n_land_px * 900 / 1e6
+On land_px only: LST mean, median, std (C, ddof=1); NDVI mean; NDBI mean;
 valid_count min and median; share of land pixels with valid_count <= 20.
 Empty cells get NaN, never 0.
 Population: the R2 cell value taken ONCE per cell (never summed per pixel).
-Flags (report only, drop nothing): partial_bmc (bmc_fraction < 0.5),
-water_dominated (land_share < 0.5), low_obs (cell median valid_count < 3),
-no_pop (population == 0).
+Density columns: pop_density_bmc = pop / bmc_area_km2, pop_density_land =
+pop / land_area_km2, pop_density_full = pop / 0.25 (people per km2; NaN where
+the denominator is 0).
+Flags (report only, drop nothing; all False outside BMC):
+    partial_bmc (bmc_fraction < 0.5), water_dominated (land_share < 0.5),
+    low_obs (cell median valid_count < 3), no_pop (population == 0).
+core = in_bmc AND NOT partial_bmc AND NOT water_dominated.
 Cells with n_bmc_px == 0 are outside BMC: reported separately and excluded
 from every flag count.
 Writes data/processed/cells_500m.csv and cells_500m.geojson (gitignored).
-Thermal native resolution is 100 m and 500 m cells are the unit of analysis.
+Thermal native resolution is 100 m; 500 m cells are the unit of analysis.
 """
-import json
 import os
 import sys
 
@@ -29,16 +35,18 @@ import rasterio
 import geopandas as gpd
 from rasterio.features import rasterize as rio_rasterize
 from shapely.geometry import mapping as shp_mapping
-from shapely.geometry import Polygon
+from shapely import box
 
 sys.path.insert(0, "src")
 import config
 from utils import write_log
-from aggregate import assign_cells
+from aggregate import assign_cells, sum_per_cell
+from stats_utils import spearman_rho
 
 DIR_COMP = config.DIR_COMPOSITES
 CELL_SIZE = 500.0
-CELL_AREA_PX = CELL_SIZE * CELL_SIZE / 900.0  # 30 m pixels per 500 m cell
+PIXEL_AREA_M2 = 900.0
+FULL_CELL_AREA_KM2 = 0.25  # 500 m x 500 m
 
 
 def read_band(name):
@@ -53,6 +61,12 @@ def bmc_mask_30m(transform, height, width):
         out_shape=(height, width), transform=transform,
         fill=0, default_value=1, dtype="uint8",
     ).astype(bool)
+
+
+def _safe_divide(num, denom):
+    out = np.full(num.shape, np.nan, dtype=np.float64)
+    np.divide(num, denom, out=out, where=denom != 0.0)
+    return out
 
 
 def main():
@@ -73,6 +87,7 @@ def main():
     n_cols = int(np.ceil((maxx - minx) / CELL_SIZE))
     n_rows = int(np.ceil((maxy - miny) / CELL_SIZE))
     n_cells = n_rows * n_cols
+    full_cell_px = CELL_SIZE * CELL_SIZE / PIXEL_AREA_M2  # theoretical 30 m px per cell
 
     xs = minx + (np.arange(W) + 0.5) * tf.a
     ys = maxy + (np.arange(H) + 0.5) * tf.e
@@ -86,12 +101,15 @@ def main():
     flat_land = land_mask.ravel()
     use = in_range
 
+    # n_grid_px: all pixel centres assigned to the cell (in_range only).
+    n_grid_px = np.bincount(flat_cell_id[use], minlength=n_cells)
     n_bmc_px = np.bincount(flat_cell_id[flat_bmc & use], minlength=n_cells)
     n_land_px = np.bincount(flat_cell_id[flat_land & use], minlength=n_cells)
 
-    bmc_fraction = n_bmc_px / CELL_AREA_PX
-    land_share = np.full(n_cells, np.nan)
-    np.divide(n_land_px, n_bmc_px, out=land_share, where=n_bmc_px > 0)
+    bmc_fraction = _safe_divide(n_bmc_px, n_grid_px)
+    land_share = _safe_divide(n_land_px, n_bmc_px)
+    bmc_area_km2 = n_bmc_px * PIXEL_AREA_M2 / 1e6
+    land_area_km2 = n_land_px * PIXEL_AREA_M2 / 1e6
 
     # Stats on land pixels only, via pandas groupby (no per-cell Python loop).
     land_ids = flat_cell_id[flat_land & use]
@@ -130,117 +148,96 @@ def main():
     ndbi_mean[cids] = agg["ndbi_mean"].to_numpy(dtype=np.float64)
     vc_min[cids] = agg["vc_min"].to_numpy(dtype=np.float64)
     vc_med[cids] = agg["vc_median"].to_numpy(dtype=np.float64)
-    vc_ok = n_land_px[cids] > 0
+    n_land_c = n_land_px[cids].astype(np.float64)
     vc_counts = agg["vc_le20_count"].to_numpy(dtype=np.float64)
-    vc_le20_share[cids[vc_ok]] = vc_counts[vc_ok] / n_land_px[cids[vc_ok]]
+    vc_ok = n_land_c > 0
+    vc_le20_share[cids[vc_ok]] = vc_counts[vc_ok] / n_land_c[vc_ok]
 
     # Population: R2 cell value taken ONCE per cell, never summed per pixel.
     pop_path = os.path.join(config.DIR_DATA, "population", "cells_population.npy")
-    cell_pop = np.load(pop_path).astype(np.float64).ravel()
-    if cell_pop.size != n_cells:
-        msg = (f"STOP: population array size {cell_pop.size} != n_cells {n_cells}")
+    pop = np.load(pop_path).astype(np.float64).ravel()
+    if pop.size != n_cells:
+        msg = f"STOP: population array size {pop.size} != n_cells {n_cells}"
         print(msg)
         raise SystemExit(msg)
-    pop = cell_pop
-    pop_grid_sum = float(pop.sum())
-    print(f"  R2 grid sum of population = {pop_grid_sum:.2f}")
-    print(f"  Sum of population column (once per cell) = {float(pop.sum()):.2f}")
-    assert abs(float(pop.sum()) - pop_grid_sum) < 1e-9
 
-    # Flags only among BMC cells (n_bmc_px > 0). Cells with n_bmc_px == 0 are
-    # outside BMC: reported separately, excluded from every flag count.
+    # Density columns (people per km2); NaN where denominator is 0.
+    pop_density_bmc = _safe_divide(pop, bmc_area_km2)
+    pop_density_land = _safe_divide(pop, land_area_km2)
+    pop_density_full = _safe_divide(pop, np.full(n_cells, FULL_CELL_AREA_KM2))
+
+    # Flags, all False outside BMC.
     bmc_cells = n_bmc_px > 0
-    n_outside_bmc = int((~bmc_cells).sum())
-    print(f"  Cells with n_bmc_px == 0 (outside BMC): {n_outside_bmc}")
+    in_bmc = bmc_cells
+    n_outside_bmc = int((~in_bmc).sum())
 
-    partial_bmc = bmc_fraction < 0.5
-    water_dominated = land_share < 0.5
-    low_obs = vc_med < 3.0
-    no_pop = pop == 0.0
+    partial_bmc = (bmc_fraction < 0.5) & in_bmc
+    water_dominated = (land_share < 0.5) & in_bmc
+    low_obs = (vc_med < 3.0) & in_bmc
+    no_pop = (pop == 0.0) & in_bmc
     any_flag = partial_bmc | water_dominated | low_obs | no_pop
 
     def count_bmc(mask):
-        return int((mask & bmc_cells).sum())
+        return int((mask & in_bmc).sum())
 
     n_partial_bmc = count_bmc(partial_bmc)
     n_water_dominated = count_bmc(water_dominated)
     n_low_obs = count_bmc(low_obs)
     n_no_pop = count_bmc(no_pop)
     n_any_flag = count_bmc(any_flag)
-    n_no_flags = int((bmc_cells & (~any_flag)).sum())
+    n_no_flags = int((in_bmc & (~any_flag)).sum())
+
+    core = in_bmc & (~partial_bmc) & (~water_dominated)
+    n_core = int(core.sum())
+    n_in_bmc_no_pop_not_core = int(((in_bmc & no_pop) & (~core)).sum())
+
+    # Max bmc_fraction must be at most 1.0.
+    max_bmc_fraction = float(np.nanmax(bmc_fraction[in_bmc])) if int(in_bmc.sum()) else np.nan
+    max_grid_px = int(n_grid_px[in_bmc].max()) if int(in_bmc.sum()) else 0
+    n_bmc_below_full = int(((in_bmc) & (n_grid_px < max_grid_px)).sum()) if int(in_bmc.sum()) else 0
+
+    # Density report for BMC cells with pop > 0.
+    pop_pos_bmc = in_bmc & (pop > 0.0)
+    n_pop_pos_bmc = int(pop_pos_bmc.sum())
+    if n_pop_pos_bmc > 0:
+        pdb = pop_density_bmc[pop_pos_bmc]
+        pdl = pop_density_land[pop_pos_bmc]
+        pdf = pop_density_full[pop_pos_bmc]
+        max_density_bmc = float(np.max(pdb))
+        med_density_bmc = float(np.median(pdb))
+        max_density_land = float(np.max(pdl))
+        med_density_land = float(np.median(pdl))
+        max_density_full = float(np.max(pdf))
+        med_density_full = float(np.median(pdf))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            rel_diff = np.abs((pdl - pdf) / pdf)
+        n_density_diff_gt20 = int((rel_diff > 0.20).sum())
+    else:
+        max_density_bmc = med_density_bmc = np.nan
+        max_density_land = med_density_land = np.nan
+        max_density_full = med_density_full = np.nan
+        n_density_diff_gt20 = 0
 
     # Spearman between LST mean and LST median across BMC cells with n_land_px > 0.
-    # Computed with vectorised numpy (average ranks + Pearson of ranks) because
-    # scipy.stats.spearmanr crashes in this environment.
-    spear_mask = bmc_cells & (n_land_px > 0)
-    valid_pair = spear_mask & ~np.isnan(lst_mean) & ~np.isnan(lst_med)
-    rho = None
-    if int(valid_pair.sum()) > 1:
-        a = lst_mean[valid_pair]
-        b = lst_med[valid_pair]
+    spear_mask = in_bmc & (n_land_px > 0)
+    valid_pair = spear_mask & (~np.isnan(lst_mean)) & (~np.isnan(lst_med))
+    rho, n_spear = spearman_rho(lst_mean[valid_pair], lst_med[valid_pair])
 
-        def rankdata_average(v):
-            order = np.argsort(v, kind="mergesort")
-            sorted_v = v[order]
-            n = v.size
-            is_start = np.concatenate(([True], sorted_v[1:] != sorted_v[:-1]))
-            run_id = np.cumsum(is_start) - 1
-            run_sum = np.bincount(run_id, weights=np.arange(1, n + 1, dtype=np.float64))
-            run_count = np.bincount(run_id)
-            ranks_sorted = run_sum / run_count
-            ranks = np.empty(n, dtype=np.float64)
-            ranks[order] = ranks_sorted[run_id]
-            return ranks
-
-        ra = rankdata_average(a)
-        rb = rankdata_average(b)
-        ca = ra - ra.mean()
-        cb = rb - rb.mean()
-        denom = np.sqrt(np.sum(ca * ca) * np.sum(cb * cb))
-        rho = float(np.sum(ca * cb) / denom) if denom > 0.0 else np.nan
-
-    print(f"  Flags (report only, drop nothing; BMC cells only):")
-    print(f"    partial_bmc (bmc_fraction < 0.5): {n_partial_bmc}")
-    print(f"    water_dominated (land_share < 0.5): {n_water_dominated}")
-    print(f"    low_obs (cell median valid_count < 3): {n_low_obs}")
-    print(f"    no_pop (population == 0): {n_no_pop}")
-    print(f"    Cells with any flag: {n_any_flag}")
-    print(f"    Cells with no flags: {n_no_flags}")
-    if rho is not None:
-        print(f"  Spearman(LST mean, LST median) across BMC cells with n_land_px > 0 = {rho:.4f}")
-
-    # Sanity assertions that print their results.
-    n_bmc_cells = int(bmc_cells.sum())
-    ok_a = n_bmc_cells == 2005
-    print(f"  ASSERT number of BMC cells == 2005: {n_bmc_cells} {'OK' if ok_a else 'FAIL'}")
-    if not ok_a:
-        raise SystemExit(f"STOP: BMC cells {n_bmc_cells} != 2005")
-
-    sum_nbmc = int(n_bmc_px.sum())
-    ok_b = sum_nbmc == 509028
-    print(f"  ASSERT sum of n_bmc_px == 509028: {sum_nbmc} {'OK' if ok_b else 'FAIL'}")
-    if not ok_b:
-        raise SystemExit(f"STOP: sum n_bmc_px {sum_nbmc} != 509028")
-
-    nonfinite_lst = int((bmc_mask & (ndwi <= 0.0) & (~np.isfinite(lst))).sum())
-    expected_land = 494795 - nonfinite_lst
-    sum_nland = int(n_land_px.sum())
-    diff_land = sum_nland - expected_land
-    ok_c = diff_land == 0
-    print(f"  ASSERT sum of n_land_px == 494795 - non-finite LST pixels ({expected_land}): "
-          f"{sum_nland} (diff={diff_land}) {'OK' if ok_c else 'FAIL'}")
-    if not ok_c:
-        raise SystemExit(f"STOP: sum n_land_px {sum_nland} != expected {expected_land}")
+    # Number of BMC cells with n_land_px == 1 (lst_std is NaN there, ddof=1).
+    n_land_eq1 = int(((in_bmc) & (n_land_px == 1)).sum())
 
     # Build output table (all cells).
     df = pd.DataFrame({
         "cell_id": np.arange(n_cells),
         "cell_row": np.arange(n_cells) // n_cols,
         "cell_col": np.arange(n_cells) % n_cols,
+        "n_grid_px": n_grid_px,
         "n_bmc_px": n_bmc_px,
         "n_land_px": n_land_px,
         "bmc_fraction": bmc_fraction,
         "land_share": land_share,
+        "bmc_area_km2": bmc_area_km2,
+        "land_area_km2": land_area_km2,
         "lst_mean": lst_mean,
         "lst_median": lst_med,
         "lst_std": lst_std,
@@ -250,72 +247,122 @@ def main():
         "vc_median": vc_med,
         "vc_le20_share": vc_le20_share,
         "pop": pop,
+        "pop_density_bmc": pop_density_bmc,
+        "pop_density_land": pop_density_land,
+        "pop_density_full": pop_density_full,
+        "in_bmc": in_bmc,
         "partial_bmc": partial_bmc,
         "water_dominated": water_dominated,
         "low_obs": low_obs,
         "no_pop": no_pop,
+        "core": core,
+        "cell_minx": minx + (np.arange(n_cells) % n_cols) * CELL_SIZE,
+        "cell_maxy": maxy - (np.arange(n_cells) // n_cols) * CELL_SIZE,
     })
 
     os.makedirs(os.path.join(config.DIR_DATA, "processed"), exist_ok=True)
     out_csv = os.path.join(config.DIR_DATA, "processed", "cells_500m.csv")
     df.to_csv(out_csv, index=False)
-    print(f"  CSV written to {out_csv}")
+    print(f"CSV written to {out_csv}")
 
     out_geojson = os.path.join(config.DIR_DATA, "processed", "cells_500m.geojson")
-    features = []
-    for cid in range(n_cells):
-        r = int(cid // n_cols)
-        c = int(cid % n_cols)
-        x0 = minx + c * CELL_SIZE
-        x1 = x0 + CELL_SIZE
-        y1 = maxy - r * CELL_SIZE
-        y0 = y1 - CELL_SIZE
+    # Geometry built without a Python for loop over cells (shapely.box with arrays).
+    rows_arr = (np.arange(n_cells) // n_cols).astype(np.float64)
+    cols_arr = (np.arange(n_cells) % n_cols).astype(np.float64)
+    x0 = minx + cols_arr * CELL_SIZE
+    x1 = x0 + CELL_SIZE
+    y1 = maxy - rows_arr * CELL_SIZE
+    y0 = y1 - CELL_SIZE
+    geometries = box(x0, y0, x1, y1)  # vectorised; no per-cell Python loop
 
-        def clean(v):
-            return None if (isinstance(v, float) and np.isnan(v)) else v
+    df_in_bmc_only = df[in_bmc].copy()
+    geoms_in_bmc = geometries[in_bmc]
+    gdf = gpd.GeoDataFrame(df_in_bmc_only,
+                           geometry=geoms_in_bmc, crs=config.CRS_METRIC)
+    gdf = gdf.to_crs(config.CRS_LONLAT)
+    gdf.to_file(out_geojson, driver="GeoJSON")
+    n_features = len(gdf)
+    print(f"GeoJSON written to {out_geojson} ({n_features} features)")
 
-        feat = {
-            "type": "Feature",
-            "properties": {
-                "cell_id": int(cid),
-                "row": r,
-                "col": c,
-                "n_bmc_px": int(n_bmc_px[cid]),
-                "n_land_px": int(n_land_px[cid]),
-                "lst_mean": clean(float(lst_mean[cid])),
-                "lst_median": clean(float(lst_med[cid])),
-                "ndvi_mean": clean(float(ndvi_mean[cid])),
-                "ndbi_mean": clean(float(ndbi_mean[cid])),
-                "pop": float(pop[cid]),
-            },
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [[[x0, y1], [x1, y1], [x1, y0], [x0, y0], [x0, y1]]],
-            },
-        }
-        features.append(feat)
-    geojson = {"type": "FeatureCollection", "features": features}
-    with open(out_geojson, "w", encoding="utf-8") as f:
-        json.dump(geojson, f)
-    print(f"  GeoJSON written to {out_geojson}")
+    # Round trip check: read CSV back from disk and assert.
+    df_back = pd.read_csv(out_csv)
+    checks = []
+    checks.append(("sum of pop within 1 of 13661494",
+                   abs(float(df_back["pop"].sum()) - 13661494.0) <= 1.0,
+                   f"sum pop = {df_back['pop'].sum():.2f}"))
+    checks.append(("sum of n_bmc_px equals 509028",
+                   int(df_back["n_bmc_px"].sum()) == 509028,
+                   f"sum n_bmc_px = {int(df_back['n_bmc_px'].sum())}"))
+    checks.append(("sum of n_land_px equals 494795",
+                   int(df_back["n_land_px"].sum()) == 494795,
+                   f"sum n_land_px = {int(df_back['n_land_px'].sum())}"))
+    checks.append(("number of rows equals 4032",
+                   len(df_back) == 4032,
+                   f"rows = {len(df_back)}"))
+    checks.append(("number of in_bmc cells equals 2005",
+                   int(df_back["in_bmc"].sum()) == 2005,
+                   f"in_bmc cells = {int(df_back['in_bmc'].sum())}"))
+    roundtrip_ok = True
+    for name, ok, detail in checks:
+        status = "OK" if ok else "FAIL"
+        print(f"ASSERT {name}: {detail} -> {status}")
+        lines_local = []
+        lines_local.append(f"ASSERT {name}: {detail} -> {status}")
+        if not ok:
+            roundtrip_ok = False
+    if not roundtrip_ok:
+        raise SystemExit("STOP: round trip check failed.")
 
-    # Print first 10 rows of BMC cells and describe() of numeric columns.
-    df_bmc = df[bmc_cells]
-    print("")
-    print("First 10 rows of BMC cells:")
-    print(df_bmc.head(10).to_string())
-    print("")
-    print("Describe() of numeric columns:")
-    print(df.select_dtypes(include="number").describe().to_string())
+    # Cross-checks (print only).
+    n_pop_pos_bf_lt01 = int(((in_bmc) & (pop > 0.0) & (bmc_fraction < 0.1)).sum())
+    n_pop0_bf_gt09 = int(((in_bmc) & (pop == 0.0) & (bmc_fraction > 0.9)).sum())
+    print(f"BMC cells with pop > 0 and bmc_fraction < 0.1: {n_pop_pos_bf_lt01}")
+    print(f"BMC cells with pop == 0 and bmc_fraction > 0.9: {n_pop0_bf_gt09}")
+
+    # GeoJSON read-back check.
+    gdf = gpd.read_file(out_geojson)
+    gdf = gdf.to_crs(config.CRS_LONLAT)
+    bounds = gdf.total_bounds  # minx, miny, maxx, maxy in degrees
+    lon_ok = (bounds[0] >= 72.77) and (bounds[2] <= 72.99)
+    lat_ok = (bounds[1] >= 18.89) and (bounds[3] <= 19.27)
+    geojson_pop_sum = float(gdf["pop"].sum()) if "pop" in gdf.columns else np.nan
+    csv_pop_sum = float(df.loc[in_bmc, "pop"].sum())
+    geojson_ok = (len(gdf) == 2005) and lon_ok and lat_ok
+    print(f"GeoJSON read-back: features={len(gdf)}, CRS={gdf.crs}")
+    print(f"  bounds (lon_min, lat_min, lon_max, lat_max) = "
+          f"({bounds[0]:.6f}, {bounds[1]:.6f}, {bounds[2]:.6f}, {bounds[3]:.6f})")
+    print(f"  bounds inside box (lon 72.77-72.99, lat 18.89-19.27): {bool(lon_ok and lat_ok)}")
+    print(f"  GeoJSON pop sum = {geojson_pop_sum:.2f}, CSV pop sum (in_bmc) = {csv_pop_sum:.2f}")
+    if not geojson_ok:
+        raise SystemExit("STOP: GeoJSON read-back check failed.")
+
+    # Logging output.
+    df_in_bmc = df[in_bmc]
+    numeric_cols = df_in_bmc.select_dtypes(include="number").columns
+    nan_counts = df_in_bmc[numeric_cols].isna().sum()
 
     lines = [
         f"Cell stats (500 m grid, EPSG:32643, BMC land pixels):",
         f"  n_rows={n_rows}, n_cols={n_cols}, total_cells={n_cells}",
-        f"  Cells with n_bmc_px > 0 (BMC cells): {n_bmc_cells}",
+        f"  Cells with n_bmc_px > 0 (BMC cells / in_bmc): {int(in_bmc.sum())}",
         f"  Cells with n_bmc_px == 0 (outside BMC): {n_outside_bmc}",
-        f"  Sum of n_bmc_px: {sum_nbmc}",
-        f"  Sum of n_land_px: {sum_nland}",
+        f"  Sum of n_bmc_px: {int(n_bmc_px.sum())}",
+        f"  Sum of n_land_px: {int(n_land_px.sum())}",
         f"  Thermal native resolution is 100 m; 500 m cells are the unit of analysis.",
+        f"",
+        f"  n_grid_px distribution among BMC cells (value counts):",
+        f"    {df_in_bmc['n_grid_px'].value_counts().sort_index().to_string()}",
+        f"  Max bmc_fraction among BMC cells = {max_bmc_fraction:.6f} (must be <= 1.0)",
+        f"  Max n_grid_px (full-cell count) among BMC cells = {max_grid_px}",
+        f"  BMC cells with n_grid_px below full-cell count = {n_bmc_below_full}",
+        f"",
+        f"  Areas: bmc_area_km2 = n_bmc_px * 900 / 1e6; land_area_km2 = n_land_px * 900 / 1e6",
+        f"  Densities (people per km2): pop_density_bmc, pop_density_land, pop_density_full (= pop / 0.25)",
+        f"  BMC cells with pop > 0: {n_pop_pos_bmc}",
+        f"    pop_density_bmc: max={max_density_bmc:.4f}, median={med_density_bmc:.4f}",
+        f"    pop_density_land: max={max_density_land:.4f}, median={med_density_land:.4f}",
+        f"    pop_density_full: max={max_density_full:.4f}, median={med_density_full:.4f}",
+        f"    cells where pop_density_land differs from pop_density_full by > 20%: {n_density_diff_gt20}",
         f"",
         f"  Flags (report only, drop nothing; BMC cells only):",
         f"    partial_bmc (bmc_fraction < 0.5): {n_partial_bmc}",
@@ -324,17 +371,37 @@ def main():
         f"    no_pop (population == 0): {n_no_pop}",
         f"    Cells with any flag: {n_any_flag}",
         f"    Cells with no flags: {n_no_flags}",
+        f"    core (in_bmc AND NOT partial_bmc AND NOT water_dominated): {n_core}",
+        f"    in_bmc cells that are no_pop and not in core: {n_in_bmc_no_pop_not_core}",
+        f"    low_obs fired {n_low_obs} time(s).",
+        f"",
+        f"  lst_std uses pandas groupby std with ddof=1 (sample std).",
+        f"  BMC cells with n_land_px == 1 (lst_std NaN there): {n_land_eq1}",
+        f"",
+        f"  Spearman(LST mean, LST median) across BMC cells with n_land_px > 0 = {rho:.4f} (n_pairs={n_spear})",
+        f"",
+        f"  Cross-checks (print only):",
+        f"    BMC cells with pop > 0 and bmc_fraction < 0.1: {n_pop_pos_bf_lt01}",
+        f"    BMC cells with pop == 0 and bmc_fraction > 0.9: {n_pop0_bf_gt09}",
+        f"",
+        f"  Round trip check (read back {out_csv}): all assertions OK.",
+        f"  GeoJSON written to {out_geojson} ({n_features} in_bmc features, reprojected to EPSG:4326).",
+        f"  Exact file names written: data/processed/cells_500m.csv, data/processed/cells_500m.geojson",
+        f"",
+        f"  First 10 rows of in_bmc cells (all columns):",
+        f"{df_in_bmc.head(10).to_string()}",
+        f"",
+        f"  describe() of numeric columns on in_bmc cells only:",
+        f"{df_in_bmc[numeric_cols].describe().to_string()}",
+        f"",
+        f"  Count of NaN per column among in_bmc cells:",
+        f"{nan_counts.to_string()}",
     ]
-    if rho is not None:
-        lines.append(f"  Spearman(LST mean, LST median) across BMC cells with n_land_px > 0 = {rho:.4f}")
     log_path = os.path.join(config.DIR_LOGS, "phase3a_cell_stats.txt")
     write_log(log_path, "\n".join(lines))
-    print(f"  Log written to {log_path}")
-    return {"n_bmc_cells": n_bmc_cells, "sum_nbmc": sum_nbmc,
-            "sum_nland": sum_nland, "n_outside_bmc": n_outside_bmc,
-            "n_partial_bmc": n_partial_bmc, "n_water_dominated": n_water_dominated,
-            "n_low_obs": n_low_obs, "n_no_pop": n_no_pop,
-            "n_no_flags": n_no_flags, "spearman": rho}
+    print(f"Log written to {log_path}")
+    return {"n_bmc_cells": int(in_bmc.sum()), "n_outside_bmc": n_outside_bmc,
+            "n_core": n_core, "spearman": rho, "n_land_eq1": n_land_eq1}
 
 
 if __name__ == "__main__":

@@ -92,3 +92,19 @@ def test_out_of_range_point_not_added_to_any_cell():
     sums, counts = sum_per_cell(values, flat_id, n_cells=4)
     assert sums.tolist() == [0.0, 9.0, 0.0, 0.0]
     assert counts.tolist() == [0.0, 1.0, 0.0, 0.0]
+
+
+def test_sum_per_cell_rejects_id_equal_to_n_cells():
+    # (viii) an id equal to n_cells raises ValueError.
+    flat_id = np.array([4], dtype=np.int64)       # n_cells == 4, valid ids 0..3
+    values = np.array([9.0])
+    with pytest.raises(ValueError):
+        sum_per_cell(values, flat_id, n_cells=4)
+
+
+def test_sum_per_cell_rejects_negative_id():
+    # (ix) an id of -1 raises ValueError.
+    flat_id = np.array([-1], dtype=np.int64)
+    values = np.array([9.0])
+    with pytest.raises(ValueError):
+        sum_per_cell(values, flat_id, n_cells=4)

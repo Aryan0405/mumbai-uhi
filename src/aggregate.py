@@ -39,12 +39,19 @@ def sum_per_cell(values, flat_cell_id, n_cells):
     """Sum values per flat cell id via np.bincount with weights.
 
     NaN values are excluded from the sums. Returns (sums, counts) where
-    counts is the number of non-NaN values per cell. Caller must pass only
-    flat cell ids in [0, n_cells) (use the in_range mask from assign_cells).
+    counts is the number of non-NaN values per cell. Raises ValueError if any
+    flat cell id is below 0 or at/above n_cells: ids must come only from
+    in_range points (see assign_cells).
     """
     values = np.asarray(values, dtype=np.float64)
     flat_cell_id = np.asarray(flat_cell_id, dtype=np.int64)
     n_cells = int(n_cells)
+    if flat_cell_id.size:
+        if int(flat_cell_id.min()) < 0 or int(flat_cell_id.max()) >= n_cells:
+            raise ValueError(
+                f"flat_cell_id out of range [0, {n_cells}): "
+                f"min={int(flat_cell_id.min())}, max={int(flat_cell_id.max())}"
+            )
     valid = ~np.isnan(values)
     sums = np.bincount(flat_cell_id[valid],
                        weights=values[valid],
