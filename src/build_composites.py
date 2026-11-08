@@ -2,9 +2,12 @@
 indices, median composite, write GeoTIFFs (EPSG:32643, 30 m), checks.
 Loading uses rasterio directly because stackstac 0.5.0 is incompatible with
 numpy 2.x (np.can_cast).
-Validity uses the shared function in src/utils.py: finite(lwir) AND QA bits
-0-4 clear. Date-level mask is the UNION of per-scene validity.
+Validity uses src/utils.build_date_mosaic: each scene's bands are masked with
+that scene's own validity (finite lwir AND QA bits 0-4 clear) BEFORE
+nanmedian; date validity = valid in at least one scene.
+Output directory is configurable (default config.DIR_COMPOSITES).
 """
+import argparse
 import os
 import time
 import tracemalloc
@@ -20,12 +23,11 @@ from rasterio.warp import reproject, Resampling, transform
 from rasterio.transform import from_origin
 import rasterio.features
 
-from utils import compute_validity
+from utils import build_date_mosaic
 
 import config
 
 LOGS = config.DIR_LOGS
-os.makedirs(config.DIR_COMPOSITES, exist_ok=True)
 os.makedirs(LOGS, exist_ok=True)
 
 SEARCH_BOX = __import__("shapely.geometry", fromlist=["box"]).box(
@@ -78,21 +80,6 @@ def search_window_b():
     return dict(by_date)
 
 
-def sign_batch(items):
-    signed = []
-    bytes_est = 0
-    for it in items:
-        for asset_name in config.ASSETS:
-            it.assets[asset_name].href = pc.sign(it.assets[asset_name].href)
-            try:
-                r = requests.head(it.assets[asset_name].href, timeout=20)
-                bytes_est += int(r.headers.get("Content-Length", 0) or 0)
-            except Exception:
-                pass
-        signed.append(it)
-    return signed, bytes_est
-
-
 def read_scale_offset(items):
     so = {}
     it0 = items[0]
@@ -107,8 +94,22 @@ def read_scale_offset(items):
 
 
 def load_asset(it, asset_name):
-    """Open signed asset, reproject to target grid, return float32 array."""
-    with rasterio.open(it.assets[asset_name].href) as src:
+    """Open signed asset, reproject to target grid, return float32 array.
+    Reuses a cached reprojected array from data/landsat/cache/ when present,
+    otherwise downloads from the signed URL and caches it.
+    Returns (array, bytes_est). bytes_est is the signed asset's Content-Length
+    when downloaded, 0 when served from cache.
+    """
+    cache_path = os.path.join("data", "landsat", "cache", f"{it.id}_{asset_name}.npy")
+    if os.path.exists(cache_path):
+        return np.load(cache_path), 0
+    href = pc.sign(it.assets[asset_name].href)
+    try:
+        r = requests.head(href, timeout=20)
+        bytes_est = int(r.headers.get("Content-Length", 0) or 0)
+    except Exception:
+        bytes_est = 0
+    with rasterio.open(href) as src:
         dst = np.empty((TARGET_HEIGHT, TARGET_WIDTH), dtype="float32")
         reproject(
             source=rasterio.band(src, 1),
@@ -121,50 +122,46 @@ def load_asset(it, asset_name):
             src_nodata=src.nodata,
             dst_nodata=np.nan,
         )
-    return dst
+    np.save(cache_path, dst)
+    return dst, bytes_est
 
 
-def load_date(date, items):
-    """Load one date. Validity: shared function, UNION across scenes of the date.
+def load_date(date, items, outdir=None):
+    """Load one date using src/utils.build_date_mosaic.
 
-    For each scene: load lwir11 (raw DN) and qa_pixel, compute per-scene
-    validity with compute_validity. Date validity = np.any across scenes
-    (a pixel is valid for the date if valid in any scene).
-    Mosaic lwir11 via nanmedian across scenes, then apply date validity.
-    Apply scale/offset to all output bands.
+    For each scene: load all bands, mask EVERY band with that scene's own
+    validity (finite lwir AND QA bits 0-4 clear) setting masked pixels to NaN.
+    Mosaic scenes with nanmedian over the masked arrays. Date validity =
+    valid in at least one scene. Scale/offset applied by caller after masking.
+    `outdir` is accepted for interface compatibility but writing is handled
+    by main().
     """
-    signed, bytes_est = sign_batch(items)
-    so = read_scale_offset(signed)
-    scene_lwir = []
-    scene_valid = []
-    for it in signed:
-        lwir = load_asset(it, "lwir11")          # raw DN, float32, NaN = missing
-        qa = load_asset(it, "qa_pixel")          # raw QA, float32, NaN = missing
-        scene_lwir.append(lwir)
-        scene_valid.append(compute_validity(lwir, qa))
-    date_valid = np.any(np.stack(scene_valid, axis=0), axis=0)
-    # Mosaic lwir11 across scenes (nanmedian), then apply date validity.
-    lwir_mosaic = np.nanmedian(np.stack(scene_lwir, axis=0), axis=0)
-    lwir_mosaic = np.where(date_valid, lwir_mosaic, np.nan)
+    so = read_scale_offset(items)
+    scenes = []
+    bytes_est = 0
+    for it in items:
+        scene = {}
+        for asset_name in config.ASSETS:
+            scene[asset_name], b = load_asset(it, asset_name)
+            bytes_est += b
+        scenes.append(scene)
+    mosaic, date_validity = build_date_mosaic(scenes)
     band_names = [b for b in config.ASSETS if b != "qa_pixel"]
-    out = {"lwir11": lwir_mosaic}
-    for bname in band_names:
-        if bname == "lwir11":
-            continue
-        stack = np.stack([load_asset(it, bname) for it in signed], axis=0)
-        out[bname] = np.nanmedian(stack, axis=0)
-        out[bname] = np.where(date_valid, out[bname], np.nan)
-    # Apply scale/offset
+    out = {}
     for bname in band_names:
         s = so[bname]["scale"]; o = so[bname]["offset"]
-        out[bname] = out[bname] * s + o
-    valid_frac = float(np.mean(date_valid))
-    valid_frac_bmc = float(np.mean(date_valid & BMC_MASK)) if BMC_MASK.any() else float("nan")
+        out[bname] = mosaic[bname] * s + o
+    valid_frac = float(np.mean(date_validity))
+    valid_frac_bmc = (float(np.mean(date_validity & BMC_MASK))
+                      if BMC_MASK.any() else float("nan"))
     arr = np.stack([out[b] for b in band_names], axis=0)  # (band, y, x)
     return arr, band_names, valid_frac, valid_frac_bmc, bytes_est
 
 
-def main():
+def main(outdir=None):
+    if outdir is None:
+        outdir = config.DIR_COMPOSITES
+    os.makedirs(outdir, exist_ok=True)
     by_date = search_window_b()
     dates = sorted(by_date)
     print(f"Unique dates: {len(dates)}")
@@ -173,7 +170,7 @@ def main():
     t0 = time.time()
     pilot_arrays = []
     for d in dates[:2]:
-        arr, bands, vf, vf_bmc, bts = load_date(d, by_date[d])
+        arr, bands, vf, vf_bmc, bts = load_date(d, by_date[d], outdir)
         pilot_arrays.append(arr)
         print(f"Pilot {d}: valid_frac_box={vf:.4f}, valid_frac_bmc={vf_bmc:.4f}, bytes_est={bts}")
     t1 = time.time()
@@ -184,7 +181,7 @@ def main():
     arrays = []
     vf_table = []
     for d in dates:
-        arr, bands, vf, vf_bmc, bts = load_date(d, by_date[d])
+        arr, bands, vf, vf_bmc, bts = load_date(d, by_date[d], outdir)
         arrays.append(arr)
         vf_table.append((d, vf, vf_bmc))
     stack_all = np.stack(arrays, axis=0)  # (date, band, y, x)
@@ -208,15 +205,15 @@ def main():
         "crs": config.CRS_METRIC, "transform": TARGET_TRANSFORM, "nodata": np.nan,
     }
     for i, bname in enumerate(bands):
-        path = os.path.join(config.DIR_COMPOSITES, f"{bname}.tif")
+        path = os.path.join(outdir, f"{bname}.tif")
         with rasterio.open(path, "w", **profile) as dst:
             dst.write(composite[i].astype("float32"), 1)
             dst.set_band_description(1, bname)
     vprofile = dict(profile); vprofile["count"] = 1
-    with rasterio.open(os.path.join(config.DIR_COMPOSITES, "valid_count.tif"),
+    with rasterio.open(os.path.join(outdir, "valid_count.tif"),
                        "w", **vprofile) as dst:
         dst.write(vcount.astype("float32"), 1)
-    print(f"Wrote {len(bands)} composite GeoTIFFs + valid_count to {config.DIR_COMPOSITES}")
+    print(f"Wrote {len(bands)} composite GeoTIFFs + valid_count to {outdir}")
     # NDVI band range check (nir band values are reflectance)
     ni = bands.index("nir08")
     print(f"NIR band min={float(np.nanmin(composite[ni])):.3f} "
@@ -225,4 +222,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--outdir", default=config.DIR_COMPOSITES,
+                        help="output directory for GeoTIFFs")
+    args = parser.parse_args()
+    main(args.outdir)

@@ -1,9 +1,14 @@
-"""Phase 2 compute indices + checks: reads existing band composites
-(data/composites/*.tif, valid_count.tif), computes NDVI/NDBI/NDWI, writes them,
-runs validity checks, reports LST percentiles, valid-observation distribution,
-and saves quicklook PNGs with 'masked' labels.
+"""Phase 2 compute indices + checks: reads band composites, computes NDVI/NDBI/
+NDWI, writes them, runs validity checks, reports LST percentiles, valid-
+observation distribution, and saves quicklook PNGs with 'masked' labels.
+Reads from --indir (default data/composites) and writes to --outdir
+(default same as --indir), so it can be run on the v2 composites without
+touching the old ones.
 """
+import argparse
 import os
+import sys
+
 import numpy as np
 import rasterio
 from rasterio.warp import transform
@@ -11,34 +16,36 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, "src")
 import config
 from utils import ndvi as utils_ndvi, ndbi as utils_ndbi, ndwi as utils_ndwi
 
-DIR_COMP = config.DIR_COMPOSITES
 LOGS = config.DIR_LOGS
 os.makedirs(LOGS, exist_ok=True)
 
 
-def read_band(name):
-    with rasterio.open(os.path.join(DIR_COMP, f"{name}.tif")) as src:
+def read_band(name, indir):
+    with rasterio.open(os.path.join(indir, f"{name}.tif")) as src:
         return src.read(1).astype("float64"), src.transform, src.crs
 
 
-def write_band(name, arr, transform, crs):
+def write_band(name, arr, transform, crs, outdir):
     profile = {
         "driver": "GTiff", "dtype": "float32", "width": arr.shape[1],
         "height": arr.shape[0], "count": 1, "crs": crs,
         "transform": transform, "nodata": np.nan,
     }
-    with rasterio.open(os.path.join(DIR_COMP, f"{name}.tif"), "w", **profile) as dst:
+    with rasterio.open(os.path.join(outdir, f"{name}.tif"), "w", **profile) as dst:
         dst.write(arr.astype("float32"), 1)
+        dst.set_band_description(1, name)
 
 
 def quicklook(name, arr, vmin, vmax, cmap, label, extent=None, bmc4326=None,
               mask_nan=True):
     H, W = arr.shape
     aspect = W / H
-    fig, ax = plt.subplots(figsize=(6 * max(aspect, 1.0), 6 * max(1.0 / aspect, 1.0)))
+    fig, ax = plt.subplots(figsize=(6 * max(aspect, 1.0),
+                                    6 * max(1.0 / aspect, 1.0)))
     show = np.where(np.isnan(arr), np.nan, arr) if mask_nan else arr
     im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent,
                    origin="upper", aspect="equal")
@@ -68,22 +75,24 @@ def lonlat_to_rowcol(lon, lat, transform):
     return int(r[0]), int(c[0])
 
 
-def main():
-    lwir, tf, crs = read_band("lwir11")
-    red, _, _ = read_band("red")
-    nir, _, _ = read_band("nir08")
-    swir, _, _ = read_band("swir16")
-    green, _, _ = read_band("green")
-    with rasterio.open(os.path.join(DIR_COMP, "valid_count.tif")) as src:
+def main(indir=config.DIR_COMPOSITES, outdir=config.DIR_COMPOSITES):
+    os.makedirs(outdir, exist_ok=True)
+    lwir, tf, crs = read_band("lwir11", indir)
+    red, _, _ = read_band("red", indir)
+    nir, _, _ = read_band("nir08", indir)
+    swir, _, _ = read_band("swir16", indir)
+    green, _, _ = read_band("green", indir)
+    with rasterio.open(os.path.join(indir, "valid_count.tif")) as src:
         vcount = src.read(1).astype("float64")
+    H, W = lwir.shape
 
     # ---- Indices ----
     ndvi = utils_ndvi(nir, red)
     ndbi = utils_ndbi(swir, nir)
     ndwi = utils_ndwi(green, nir)
-    write_band("ndvi", ndvi, tf, crs)
-    write_band("ndbi", ndbi, tf, crs)
-    write_band("ndwi", ndwi, tf, crs)
+    write_band("ndvi", ndvi, tf, crs, outdir)
+    write_band("ndbi", ndbi, tf, crs, outdir)
+    write_band("ndwi", ndwi, tf, crs, outdir)
 
     # ---- Checks ----
     nv = ndvi[~np.isnan(ndvi)]
@@ -93,7 +102,8 @@ def main():
     # ---- LST percentiles (provisional rule) ----
     lst = lwir - 273.15
     finite = lst[~np.isnan(lst)]
-    p01, p999 = np.percentile(finite, [config.LST_PERCENTILES[0], config.LST_PERCENTILES[1]])
+    p01, p999 = np.percentile(finite, [config.LST_PERCENTILES[0],
+                                       config.LST_PERCENTILES[1]])
     mx = float(finite.max())
     n_hot = int((finite > config.LST_HOT_THRESHOLD_C).sum())
     print(f"LST composite: 0.1th={p01:.2f} C, 99.9th={p999:.2f} C, max={mx:.2f} C, "
@@ -106,23 +116,23 @@ def main():
     bmc = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
     bmc_mask = rio_rasterize(
         [shp_mapping(g) for g in bmc.geometry],
-        out_shape=lwir.shape, transform=tf, fill=0, default_value=1, dtype="uint8",
+        out_shape=(H, W), transform=tf, fill=0, default_value=1, dtype="uint8",
     ).astype(bool)
     print(f"BMC mask pixels: {int(bmc_mask.sum())} of {bmc_mask.size}")
 
     # ---- Valid observation distribution ----
     vc = vcount[~np.isnan(vcount)]
-    print(f"Valid-count (box): min={float(np.nanmin(vcount))} "
-          f"5th={np.percentile(vc,5):.1f} 25th={np.percentile(vc,25):.1f} "
-          f"50th={np.percentile(vc,50):.1f} 75th={np.percentile(vc,75):.1f} "
-          f"max={float(np.nanmax(vcount))}")
+    print(f"Valid-count (box): min={float(np.nanmin(vc))} "
+          f"5th={np.percentile(vc, 5):.1f} 25th={np.percentile(vc, 25):.1f} "
+          f"50th={np.percentile(vc, 50):.1f} 75th={np.percentile(vc, 75):.1f} "
+          f"max={float(np.nanmax(vc))}")
     vc_bmc = vcount[bmc_mask & ~np.isnan(vcount)]
     print(f"Valid-count (inside BMC): min={float(np.nanmin(vc_bmc))} "
-          f"median={np.percentile(vc_bmc,50):.1f} max={float(np.nanmax(vc_bmc))}")
+          f"median={np.percentile(vc_bmc, 50):.1f} max={float(np.nanmax(vc_bmc))}")
     below3 = int((vc < 3).sum())
     below3_bmc = int((vc_bmc < 3).sum())
-    print(f"Pixels below 3 valid obs: box={below3} ({100*below3/vc.size:.2f}%), "
-          f"BMC={below3_bmc} ({100*below3_bmc/vc_bmc.size:.2f}%)")
+    print(f"Pixels below 3 valid obs: box={below3} ({100 * below3 / vc.size:.2f}%), "
+          f"BMC={below3_bmc} ({100 * below3_bmc / vc_bmc.size:.2f}%)")
 
     # ---- Valid-obs medians: park vs built-up windows ----
     for label, lon, lat in [("built_up", config.LON_BUILDUP, config.LAT_BUILDUP),
@@ -137,8 +147,6 @@ def main():
               f"(n={win.size}, window rows {r0}:{r1} cols {c0}:{c1})")
 
     # ---- Quicklooks ----
-    # Extent in EPSG:32643 meters (left, right, bottom, top), origin="upper".
-    H, W = lwir.shape
     extent = (tf.c, tf.c + tf.a * W, tf.f + tf.e * H, tf.f)
     bmc32643 = gpd.read_file(config.BMC_GEOJSON).dissolve().to_crs(config.CRS_METRIC)
     vcount_min = float(np.nanmin(vcount))
@@ -156,4 +164,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--indir", default=config.DIR_COMPOSITES)
+    parser.add_argument("--outdir", default=config.DIR_COMPOSITES)
+    args = parser.parse_args()
+    main(args.indir, args.outdir)

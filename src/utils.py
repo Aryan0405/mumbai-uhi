@@ -13,14 +13,6 @@ def kelvin_to_celsius(k):
     return k - 273.15
 
 
-def qa_valid(qa, bits=(1, 2, 3, 4)):
-    """True where fill bit 0 and none of the given QA bits are set."""
-    valid = ((qa >> 0) & 1) == 0
-    for b in bits:
-        valid &= ((qa >> b) & 1) == 0
-    return valid
-
-
 def ndvi(nir, red):
     return (nir - red) / (nir + red)
 
@@ -47,3 +39,30 @@ def compute_validity(lwir_dn, qa_dn):
     valid &= ((qa_i >> 3) & 1) == 0   # cloud bit 3
     valid &= ((qa_i >> 4) & 1) == 0   # shadow bit 4
     return valid
+
+
+def build_date_mosaic(scenes):
+    """Build one date's mosaic from a list of scenes.
+
+    Each scene is a dict {band_name: raw float32 array}. For each scene:
+      - validity = compute_validity(lwir11, qa_pixel)
+      - mask EVERY band with THAT scene's own validity, setting masked pixels
+        to NaN BEFORE anything else.
+    Mosaic scenes with nanmedian over the masked arrays (NaN ignored).
+    Date validity = valid in at least one scene (union across scenes).
+    Scale and offset are applied by the caller AFTER masking.
+    Returns (mosaic: dict {band_name: array}, date_validity: bool array).
+    """
+    scene_validity = []
+    scene_masked = {}
+    for scene in scenes:
+        validity = compute_validity(scene["lwir11"], scene["qa_pixel"])
+        scene_validity.append(validity)
+        for band_name, arr in scene.items():
+            masked = np.where(validity, arr, np.nan)
+            scene_masked.setdefault(band_name, []).append(masked)
+    date_validity = np.any(np.stack(scene_validity, axis=0), axis=0)
+    mosaic = {}
+    for band_name, arrs in scene_masked.items():
+        mosaic[band_name] = np.nanmedian(np.stack(arrs, axis=0), axis=0)
+    return mosaic, date_validity

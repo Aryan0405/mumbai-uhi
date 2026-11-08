@@ -23,7 +23,7 @@ from collections import defaultdict
 
 sys.path.insert(0, "src")
 import config
-from utils import compute_validity
+from utils import build_date_mosaic
 
 CACHE_DIR = "data/landsat/cache"
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
@@ -115,16 +115,12 @@ def main():
     print("Per-date BMC land median LST (all 26 dates):")
     per_date = {}
     for d in dates:
-        scene_lwir = []
-        scene_valid = []
+        scenes = []
         for it in by_date[d]:
             lwir, qa = load_lwir_qa(it)
-            scene_lwir.append(lwir)
-            scene_valid.append(compute_validity(lwir, qa))
-        date_lwir = np.nanmedian(np.stack(scene_lwir, axis=0), axis=0)
-        date_valid = np.any(np.stack(scene_valid, axis=0), axis=0)
-        date_lwir = np.where(date_valid, date_lwir, np.nan)
-        date_lst = dn_to_lst(date_lwir)
+            scenes.append({"lwir11": lwir, "qa_pixel": qa})
+        mosaic, date_validity = build_date_mosaic(scenes)
+        date_lst = dn_to_lst(mosaic["lwir11"])
         bmc_land = date_lst[BMC_LAND_MASK & ~np.isnan(date_lst)]
         med = float(np.median(bmc_land)) if bmc_land.size else None
         n_land = int(bmc_land.size)
@@ -143,17 +139,13 @@ def main():
             date_lst_list = []
             any_valid = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
             for d in ds:
-                scene_lwir = []
-                scene_valid = []
+                scenes = []
                 for it in by_date[d]:
                     lwir, qa = load_lwir_qa(it)
-                    scene_lwir.append(lwir)
-                    scene_valid.append(compute_validity(lwir, qa))
-                date_lwir = np.nanmedian(np.stack(scene_lwir, axis=0), axis=0)
-                date_valid = np.any(np.stack(scene_valid, axis=0), axis=0)
-                date_lwir = np.where(date_valid, date_lwir, np.nan)
-                date_lst_list.append(date_lwir)
-                any_valid |= (date_valid & BMC_MASK)
+                    scenes.append({"lwir11": lwir, "qa_pixel": qa})
+                mosaic, date_validity = build_date_mosaic(scenes)
+                date_lst_list.append(dn_to_lst(mosaic["lwir11"]))
+                any_valid |= (date_validity & BMC_MASK)
             month_stack = np.stack(date_lst_list, axis=0)
             month_comp = np.nanmedian(month_stack, axis=0)
             lst = dn_to_lst(month_comp)

@@ -26,7 +26,7 @@ import geopandas as gpd
 
 sys.path.insert(0, "src")
 import config
-from utils import compute_validity
+from utils import build_date_mosaic
 
 CACHE_DIR = "data/landsat/cache"
 SEARCH_BOX = shp_box(config.BOX["lon_min"], config.BOX["lat_min"],
@@ -92,15 +92,16 @@ def main():
     dates = sorted(by_date)
     rows = []
     for d in dates:
-        date_valid_union = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
+        scenes = []
         date_finite_union = np.zeros((TARGET_HEIGHT, TARGET_WIDTH), dtype=bool)
         for it in by_date[d]:
             lwir = load_asset_cached(it, "lwir11")
             qa = load_asset_cached(it, "qa_pixel")
-            date_valid_union |= compute_validity(lwir, qa)
+            scenes.append({"lwir11": lwir, "qa_pixel": qa})
             date_finite_union |= np.isfinite(lwir)
-        vf_box = float(np.mean(date_valid_union))
-        vf_bmc = float(np.sum(date_valid_union & BMC_MASK) / BMC_PIXEL_COUNT)
+        mosaic, date_validity = build_date_mosaic(scenes)
+        vf_box = float(np.mean(date_validity))
+        vf_bmc = float(np.sum(date_validity & BMC_MASK) / BMC_PIXEL_COUNT)
         fp_bmc = float(np.sum(date_finite_union & BMC_MASK) / BMC_PIXEL_COUNT)
         rows.append((d, vf_box, vf_bmc, BMC_PIXEL_COUNT, fp_bmc))
         print(f"{d}: vf_box={vf_box:.4f} vf_bmc={vf_bmc:.4f} "

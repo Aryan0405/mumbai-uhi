@@ -225,3 +225,72 @@ by conda and resolved automatically.
 - stackstac was removed from environment.yml (incompatible with numpy 2.x);
   rasterio is used for loading.
 - Phase 3 not started.
+
+## Round 4A - v2 composite fix (2026-11-08)
+
+Fixed the validity/mosaic ordering bug: previously each scene's bands were combined
+with nanmedian BEFORE masking, so invalid (cloudy) pixels still contributed raw DN
+values. Now each scene's bands are masked with that scene's own validity (finite
+lwir AND QA bits 0-4 clear via src/utils.compute_validity) BEFORE nanmedian; date
+validity is the union across scenes. Added src/utils.build_date_mosaic used by
+build_composites.py, per_date_valid.py and month_mix.py. Removed the duplicate
+qa_valid bit-masking implementation (compute_validity is the only one). Added
+output-directory argument to build_composites.py. Removed stackstac references
+(stackstac 0.5.0 incompatible with numpy 2.x).
+
+### Build v2 composites (src/build_composites.py --outdir data/composites_v2/)
+
+```
+Target grid: 789x1393 @30m EPSG:32643
+BMC mask pixels: 509028 of 1099077
+Unique dates: 26
+Pilot 2024-03-06: valid_frac_box=0.9999, valid_frac_bmc=0.4631, bytes_est=0
+Pilot 2024-03-14: valid_frac_box=0.9955, valid_frac_bmc=0.4604, bytes_est=0
+PILOT 2 dates: wall_time=8.9s, peak_memory=245.2 MB
+Composite shape: (5, 1393, 789), bands: ['lwir11', 'red', 'nir08', 'swir16', 'green']
+LST composite: 0.1th=28.86 C, 99.9th=50.18 C, max=55.47 C, count_above_50C=1262, valid=1099077
+Wrote 5 composite GeoTIFFs + valid_count to data/composites_v2/
+NIR band min=0.009 max=0.484
+```
+Then src/compute_indices.py --indir data/composites_v2 --outdir data/composites_v2 wrote ndvi/ndbi/ndwi into data/composites_v2/.
+
+### Download (src/download_bands.py)
+
+Cached red/nir08/swir16/green for all 49 scenes (196 files) into
+data/landsat/cache/ (resuming from existing cache). Final count: 196 / 196
+4-band files present (294 total cache files including lwir11/qa_pixel). All assets
+for build_composites.py now come from cache (bytes_est=0); no re-download.
+
+### Old vs v2 (src/old_vs_v2.py, report only)
+
+```
+valid_count inside BMC:
+  old: min=14.0 median=23.0 max=24.0
+  v2: min=14.0 median=23.0 max=24.0
+valid_count pixels differing inside BMC: 0
+LST over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
+  LST pixels differing by >0.5 C: 0
+NDVI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
+NDBI over BMC land: mean diff (v2-old)=0.0000, max abs diff=0.0000, n=509028
+```
+Old and v2 composites are identical for this dataset (the masking fix did not
+change results here). No downstream file was switched to v2.
+
+### Tests (tests/test_scale_and_qa.py, 12 passed)
+
+```
+============================== 12 passed in 0.08s ==============================
+```
+Tests call src/utils functions (apply_scale_offset, kelvin_to_celsius,
+build_date_mosaic, compute_validity, ndvi, ndbi, ndwi) with hand-computed
+expected values, including: cloudy-in-A-clear-in-B returns B exactly; both-clear
+returns the mean; both-invalid returns NaN; date validity equals any(valid);
+NaN handling; dilated cloud bit 1; NDWI.
+
+### Known issues remaining
+- compute_indices.py reads valid_count.tif and bands (read-only composites); it
+  consumes the validity product but does not call compute_validity itself
+  (operates on already-composited GeoTIFFs without QA input).
+- stackstac remains removed from environment.yml (incompatible with numpy 2.x);
+  rasterio is used for loading.
+- Phase 3 not started.
