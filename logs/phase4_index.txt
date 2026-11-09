@@ -1,0 +1,27 @@
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+N_TOP = 180
+rows after mask and dropna: 1794
+zero-pop cells: 199
+thin_obs cells: 83
+Wrote data\processed\cells_index.csv with 1794 rows
+Spearman index_primary vs index_noexp: computed=0.973973 expected=0.974000 abs_diff=2.669852e-05 MATCH
+Jaccard top-180 primary vs noexp: computed=0.791045 expected=0.791000 abs_diff=4.477612e-05 MATCH
+Spearman index_primary vs lst_mean: computed=0.928320 expected=0.928000 abs_diff=3.202440e-04 MATCH
+intersection primary top-180 with LST-alone top-180: computed=143 expected=143 abs_diff=0 MATCH
+zero-pop cells inside primary zone: computed=0 expected=0 abs_diff=0 MATCH
+
+zone_primary cells that are thin_obs: 8
+zone_primary cells that are zero_pop: 0
+zone_changed True count: 42
+  in zone_primary only: 21
+  in zone_noexp only: 21
+low_confidence cells overall: 274
+low_confidence cells in primary zone: 8
+primary zone counts per k_2 cluster: [0, 180]
+primary zone counts per k_4 cluster: [0, 0, 180, 0]
+primary zone medians: lst_mean=44.644189 ndvi_mean=0.196733 ndbi_mean=0.035876 pop_density_land=44218.211121
+outside primary zone medians: lst_mean=39.614708 ndvi_mean=0.320817 ndbi_mean=-0.046912 pop_density_land=33066.440759
+sha256 data\processed\cells_index.csv: 5aed1c35f28bb61c7a3663f650dec1a01898f1236440ffd49f9d5ae9a781a022
