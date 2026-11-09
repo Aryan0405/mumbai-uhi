@@ -12,6 +12,7 @@ except ImportError:
     import null_models  # noqa: F401
 
 import numpy as np
+import pytest
 from scipy.special import ndtri
 
 import stats_utils

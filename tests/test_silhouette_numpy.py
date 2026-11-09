@@ -5,6 +5,7 @@ Working shown in comments; expected values computed by hand.
 import math
 
 import numpy as np
+import pytest
 
 sys_path_inserted = False
 try:
@@ -19,12 +20,6 @@ except ImportError:
 from silhouette_numpy import silhouette_score
 
 
-def approx_equal(a, b, tol=1e-12):
-    a = np.asarray(a, dtype=np.float64)
-    b = np.asarray(b, dtype=np.float64)
-    return bool(np.allclose(a, b, atol=tol))
-
-
 def test_two_clusters_two_points_one_dimension():
     # Points in 1D: [0.0, 0.1] in cluster 0, [10.0, 10.1] in cluster 1.
     X = np.array([[0.0], [0.1], [10.0], [10.1]])
@@ -37,7 +32,7 @@ def test_two_clusters_two_points_one_dimension():
     # mean = (9.95/10.05 + 9.85/9.95) / 2 = 0.9899997499937498
     expected = (9.95 / 10.05 + 9.85 / 9.95) / 2.0
     result = silhouette_score(X, labels)
-    assert approx_equal(result, expected)
+    assert result == pytest.approx(expected, abs=1e-12)
 
 
 def test_singleton_cluster_silhouette_is_zero():
@@ -50,7 +45,7 @@ def test_singleton_cluster_silhouette_is_zero():
     labels = np.array([0, 1, 1])
     expected = (0.0 + 0.0 + 0.5) / 3.0
     result = silhouette_score(X, labels)
-    assert approx_equal(result, expected)
+    assert result == pytest.approx(expected, abs=1e-12)
 
 
 def test_all_one_cluster():
