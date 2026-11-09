@@ -89,3 +89,55 @@ CANDIDATES = {
     "W3_pct": (0.4, 0.4, 0.2, "pct"),
     "W4_noexp": (0.5, 0.5, 0.0, None),
 }
+
+
+def component_sets(lst, ndvi, ndbi, density):
+    """Return (H, S, E_by_kind).
+
+    H and S come from components(..., "raw"). E_by_kind is a dict
+    {"raw": E, "sqrt": E, "pct": E} of standardised exposure transforms.
+    """
+    lst = np.asarray(lst, dtype=np.float64)
+    ndvi = np.asarray(ndvi, dtype=np.float64)
+    ndbi = np.asarray(ndbi, dtype=np.float64)
+    density = np.asarray(density, dtype=np.float64)
+    H, S, E_raw = components(lst, ndvi, ndbi, density, "raw")
+    E_sqrt = standardise(exposure(density, "sqrt"))
+    E_pct = standardise(exposure(density, "pct"))
+    E_by_kind = {"raw": E_raw, "sqrt": E_sqrt, "pct": E_pct}
+    return H, S, E_by_kind
+
+
+def candidate_scores(lst, ndvi, ndbi, density):
+    """Return dict name -> score array in CANDIDATES order.
+
+    For a candidate whose kind is None the exposure term is skipped (weight
+    0), never passed to exposure().
+    """
+    H, S, E_by_kind = component_sets(lst, ndvi, ndbi, density)
+    scores = {}
+    for name, (wH, wS, wE, kind) in CANDIDATES.items():
+        if kind is None:
+            score = float(wH) * H + float(wS) * S
+        else:
+            E = E_by_kind[kind]
+            score = float(wH) * H + float(wS) * S + float(wE) * E
+        scores[name] = score
+    return scores
+
+
+def top_set(scores, n):
+    """Set of indices of the n largest scores; ties broken by lower index."""
+    scores = np.asarray(scores, dtype=np.float64)
+    order = np.argsort(-scores, kind="stable")
+    return set(int(i) for i in order[:n])
+
+
+def jaccard(a, b):
+    """|a and b| / |a or b| for two sets."""
+    a = set(a)
+    b = set(b)
+    union = a | b
+    if not union:
+        return 1.0
+    return len(a & b) / float(len(union))

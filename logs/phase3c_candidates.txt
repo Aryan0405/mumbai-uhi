@@ -1,0 +1,83 @@
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+
+rows after mask and dropna: 1794
+zero-pop cells: 199 of 1794
+
+Standardisation check (mean and ddof=0 std):
+  H mean=-5.544926588986e-16 std=1.000000000000e+00 ok=True
+  S mean=-3.168529479421e-17 std=1.000000000000e+00 ok=True
+  E_raw mean=0.000000000000e+00 std=1.000000000000e+00 ok=True
+  E_sqrt mean=1.584264739710e-16 std=1.000000000000e+00 ok=True
+  E_pct mean=-6.337058958841e-17 std=1.000000000000e+00 ok=True
+
+Pearson 3x3 among H, S, E_raw:
+  H: 1.000 0.825 0.522
+  S: 0.825 1.000 0.567
+  E: 0.522 0.567 1.000
+Pearson 3x3 among H, S, E_sqrt:
+  H: 1.000 0.825 0.524
+  S: 0.825 1.000 0.560
+  E: 0.524 0.560 1.000
+Pearson 3x3 among H, S, E_pct:
+  H: 1.000 0.825 0.493
+  S: 0.825 1.000 0.530
+  E: 0.493 0.530 1.000
+
+Candidates (weights wH, wS, wE; exposure kind):
+  W1_raw: wH=0.3333333333333333 wS=0.3333333333333333 wE=0.3333333333333333 kind=raw
+  W1_sqrt: wH=0.3333333333333333 wS=0.3333333333333333 wE=0.3333333333333333 kind=sqrt
+  W1_pct: wH=0.3333333333333333 wS=0.3333333333333333 wE=0.3333333333333333 kind=pct
+  W2_raw: wH=0.5 wS=0.25 wE=0.25 kind=raw
+  W2_sqrt: wH=0.5 wS=0.25 wE=0.25 kind=sqrt
+  W2_pct: wH=0.5 wS=0.25 wE=0.25 kind=pct
+  W3_raw: wH=0.4 wS=0.4 wE=0.2 kind=raw
+  W3_sqrt: wH=0.4 wS=0.4 wE=0.2 kind=sqrt
+  W3_pct: wH=0.4 wS=0.4 wE=0.2 kind=pct
+  W4_noexp: wH=0.5 wS=0.5 wE=0.0 kind=None
+
+Spearman matrix among candidate scores (rows/cols in candidate order):
+       W1_raw  W1_sqrt   W1_pct   W2_raw  W2_sqrt   W2_pct   W3_raw  W3_sqrt   W3_pct W4_noexp
+    W1_raw 1.000 0.995 0.997 0.990 0.983 0.990 0.988 0.981 0.988 0.930
+   W1_sqrt 0.995 1.000 0.990 0.992 0.991 0.989 0.992 0.991 0.991 0.944
+    W1_pct 0.997 0.990 1.000 0.986 0.977 0.990 0.983 0.974 0.987 0.923
+    W2_raw 0.990 0.992 0.986 1.000 0.997 0.998 0.995 0.992 0.995 0.960
+   W2_sqrt 0.983 0.991 0.977 0.997 1.000 0.994 0.994 0.995 0.992 0.967
+    W2_pct 0.990 0.989 0.990 0.998 0.994 1.000 0.993 0.989 0.995 0.956
+    W3_raw 0.988 0.992 0.983 0.995 0.994 0.993 1.000 0.998 0.999 0.974
+   W3_sqrt 0.981 0.991 0.974 0.992 0.995 0.989 0.998 1.000 0.996 0.979
+    W3_pct 0.988 0.991 0.987 0.995 0.992 0.995 0.999 0.996 1.000 0.972
+  W4_noexp 0.930 0.944 0.923 0.960 0.967 0.956 0.974 0.979 0.972 1.000
+max asymmetry: 0.000e+00
+max |diagonal - 1|: 0.000e+00
+max abs difference vs scipy.stats.spearmanr (45 pairs): 3.331e-16
+
+N_TOP = 180
+Jaccard matrix of top-180 sets:
+       W1_raw  W1_sqrt   W1_pct   W2_raw  W2_sqrt   W2_pct   W3_raw  W3_sqrt   W3_pct W4_noexp
+    W1_raw 1.000 0.856 0.809 0.809 0.748 0.818 0.827 0.765 0.885 0.651
+   W1_sqrt 0.856 1.000 0.714 0.865 0.837 0.837 0.967 0.895 0.946 0.765
+    W1_pct 0.809 0.714 1.000 0.698 0.622 0.773 0.690 0.636 0.739 0.538
+    W2_raw 0.809 0.865 0.698 1.000 0.885 0.875 0.885 0.837 0.885 0.748
+   W2_sqrt 0.748 0.837 0.622 0.885 1.000 0.782 0.865 0.875 0.846 0.818
+    W2_pct 0.818 0.837 0.773 0.875 0.782 1.000 0.827 0.773 0.856 0.667
+    W3_raw 0.827 0.967 0.690 0.885 0.865 0.827 1.000 0.925 0.925 0.791
+   W3_sqrt 0.765 0.895 0.636 0.837 0.875 0.773 0.925 1.000 0.865 0.856
+    W3_pct 0.885 0.946 0.739 0.885 0.846 0.856 0.925 0.865 1.000 0.739
+  W4_noexp 0.651 0.765 0.538 0.748 0.818 0.667 0.791 0.856 0.739 1.000
+Jaccard max asymmetry: 0.000e+00
+Jaccard max |diagonal - 1|: 0.000e+00
+
+Per candidate (N_TOP=180):
+  W1_raw: rho_lst=0.886 inter=131 jaccard=0.572 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=6 k4_c2=174 k4_c3=0
+  W1_sqrt: rho_lst=0.899 inter=140 jaccard=0.636 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W1_pct: rho_lst=0.881 inter=119 jaccard=0.494 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=4 k4_c2=176 k4_c3=0
+  W2_raw: rho_lst=0.939 inter=150 jaccard=0.714 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=1 k4_c2=179 k4_c3=0
+  W2_sqrt: rho_lst=0.946 inter=156 jaccard=0.765 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W2_pct: rho_lst=0.937 inter=142 jaccard=0.651 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W3_raw: rho_lst=0.928 inter=143 jaccard=0.659 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W3_sqrt: rho_lst=0.933 inter=147 jaccard=0.690 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W3_pct: rho_lst=0.927 inter=141 jaccard=0.644 zero_inside=0/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0
+  W4_noexp: rho_lst=0.957 inter=152 jaccard=0.731 zero_inside=1/199 k2_c0=0 k2_c1=180 k4_c0=0 k4_c1=0 k4_c2=180 k4_c3=0

@@ -14,7 +14,8 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), os.pardir, "src"))
     import index_candidates  # noqa: F401
 
-from index_candidates import standardise, exposure, components, index
+from index_candidates import standardise, exposure, components, index, \
+    component_sets, candidate_scores, top_set, jaccard
 
 
 def approx_equal(a, b, tol=1e-12):
@@ -86,3 +87,47 @@ def test_index_sign_S():
     S_b = components(lst, ndvi_b, ndbi_b, np.ones(2), "raw")[1]
     assert S_a[0] > S_a[1]
     assert S_b[0] < S_b[1]
+
+
+def test_candidate_scores_w4_noexp():
+    # W4_noexp has kind None, so exposure is skipped and the score is
+    # 0.5*H + 0.5*S. With lst=[1,2,3], ndvi=[3,2,1], ndbi=[1,2,3]:
+    #   H = standardise([1,2,3]) = [-1.224744871, 0, 1.224744871]
+    #   z_ndvi = standardise([3,2,1]) = [1.2247, 0, -1.2247]
+    #   z_ndbi = standardise([1,2,3]) = [-1.2247, 0, 1.2247]
+    #   -z_ndvi + z_ndbi = [-2.4495, 0, 2.4495]
+    #   S = standardise([-2.4495, 0, 2.4495]) = [-1.224744871, 0, 1.224744871]
+    #   0.5*H + 0.5*S = [-1.224744871, 0, 1.224744871]
+    lst = np.array([1.0, 2.0, 3.0])
+    ndvi = np.array([3.0, 2.0, 1.0])
+    ndbi = np.array([1.0, 2.0, 3.0])
+    density = np.array([0.0, 5.0, 10.0])
+    scores = candidate_scores(lst, ndvi, ndbi, density)
+    expected = np.array([-1.224744871, 0.0, 1.224744871])
+    assert approx_equal(scores["W4_noexp"], expected, tol=1e-8)
+
+
+def test_candidate_scores_key_order():
+    lst = np.array([1.0, 2.0, 3.0])
+    ndvi = np.array([3.0, 2.0, 1.0])
+    ndbi = np.array([1.0, 2.0, 3.0])
+    density = np.array([0.0, 5.0, 10.0])
+    scores = candidate_scores(lst, ndvi, ndbi, density)
+    assert list(scores.keys()) == [
+        "W1_raw", "W1_sqrt", "W1_pct",
+        "W2_raw", "W2_sqrt", "W2_pct",
+        "W3_raw", "W3_sqrt", "W3_pct",
+        "W4_noexp",
+    ]
+
+
+def test_top_set():
+    scores = [1, 3, 2, 3]
+    assert top_set(scores, 2) == {1, 3}
+    assert top_set(scores, 1) == {1}
+    assert top_set(scores, 3) == {1, 3, 2}
+
+
+def test_jaccard():
+    assert approx_equal(jaccard({1, 3}, {1, 2}), 1.0 / 3.0, tol=1e-12)
+    assert approx_equal(jaccard({1, 3}, {1, 3}), 1.0)

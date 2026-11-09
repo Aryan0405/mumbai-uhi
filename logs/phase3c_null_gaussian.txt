@@ -1,0 +1,41 @@
+Null-model test of K-Means silhouettes (Phase 3C round).
+Spatial autocorrelation is NOT modelled; this is a structureless
+continuum with the same marginals and correlations.
+
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+scikit-learn 1.9.1
+
+Null type: gaussian
+Replicates requested: 100
+Analysis cells: 1794
+Features: lst_mean, ndvi_mean, ndbi_mean
+Draws per replicate: 1794
+
+REAL data silhouettes (n_init=10, random_state=42):
+  k=2: value=0.494168 target=0.494168 ok=True
+  k=3: value=0.359270 target=0.359270 ok=True
+  k=4: value=0.370169 target=0.370169 ok=True
+
+Eigenvalues of the correlation matrix of the real z features: [2.5154969075512428, 0.286604367051908, 0.19789872539684766]
+Share of variance of the first principal component: 0.838498969183748
+
+Replicates actually run: 100
+Total elapsed seconds: 369.541
+
+Per-k null silhouette distribution vs real silhouette:
+k   real    null_mean  null_std  null_p5  null_p50  null_p95  null_max  p_value
+  2  0.494168  0.427606  0.006239  0.416869  0.428262  0.436866  0.442950  0.009901
+  3  0.359270  0.354408  0.006818  0.342564  0.355204  0.363832  0.369548  0.227723
+  4  0.370169  0.303281  0.005928  0.294794  0.303439  0.315290  0.319121  0.009901
+  5  0.306941  0.264800  0.007191  0.251965  0.264813  0.278234  0.283771  0.009901
+  6  0.305566  0.259238  0.006772  0.246922  0.259496  0.268067  0.278267  0.009901
+  7  0.303950  0.246583  0.005374  0.238431  0.246191  0.255719  0.259996  0.009901
+  8  0.297139  0.242877  0.005361  0.234880  0.242713  0.251568  0.257416  0.009901
+  9  0.297564  0.239176  0.005424  0.230701  0.239025  0.248026  0.259514  0.009901
+  10  0.298447  0.237519  0.005039  0.229956  0.237060  0.247453  0.254096  0.009901
+
+Distribution of argmax k across replicates (counts per k): {2: 100, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}
+Null distribution of best silhouette over k: mean=0.427606 std=0.006239 p5=0.416869 p50=0.428262 p95=0.436866 max=0.442950
