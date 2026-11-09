@@ -1,0 +1,30 @@
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+pyproj 3.7.2
+core cells: 1794
+BOX_PARK corners in EPSG:32643 (x, y):
+  (278109.62, 2120979.81)
+  (282317.53, 2120929.39)
+  (282422.86, 2129785.97)
+  (278216.98, 2129836.58)
+
+C1 full park box: box cells=107
+  C1 median index_primary: computed=-0.989699 expected=below core median=0.172783 CONSISTENT
+  C1 median ndvi_mean: computed=0.508405 expected=above core median=0.307711 CONSISTENT
+  C1 share in zone_primary: computed=0.000000 expected=at most 0.02 CONSISTENT
+
+C1 inner park box: box cells=25
+  C1 median index_primary: computed=-0.541643 expected=below core median=0.172783 CONSISTENT
+  C1 median ndvi_mean: computed=0.449611 expected=above core median=0.307711 CONSISTENT
+  C1 share in zone_primary: computed=0.000000 expected=at most 0.02 CONSISTENT
+
+coastal core cells: 131
+non-coastal core cells: 1663
+  C2 median H: computed coastal=-0.854112 non-coastal=0.063324 CONSISTENT
+  C2 share in zone_primary: computed coastal=0.015267 non-coastal=0.107035 CONSISTENT
+
+box cells: 107
+box cells thin_obs: 0
+box cells inside zone_primary: 0

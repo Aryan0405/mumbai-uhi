@@ -1,0 +1,47 @@
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+N_TOP = 180
+rows after mask and dropna: 1794
+reconcile E20 vs index_primary: True
+reconcile E0 vs index_noexp: True
+reconcile E33 vs W1_raw: True
+Spearman matrix among schemes (rows/cols in scheme order):
+           E0      E10      E20      E33      E50
+        E0 1.000 0.994 0.974 0.930 0.858
+       E10 0.994 1.000 0.993 0.964 0.906
+       E20 0.974 0.993 1.000 0.988 0.947
+       E33 0.930 0.964 0.988 1.000 0.984
+       E50 0.858 0.906 0.947 0.984 1.000
+Spearman max asymmetry: 0.000e+00
+Spearman max |diagonal - 1|: 0.000e+00
+Jaccard matrix of top-180 sets among schemes:
+           E0      E10      E20      E33      E50
+        E0 1.000 0.885 0.791 0.651 0.423
+       E10 0.885 1.000 0.895 0.739 0.488
+       E20 0.791 0.895 1.000 0.827 0.552
+       E33 0.651 0.739 0.827 1.000 0.674
+       E50 0.423 0.488 0.552 0.674 1.000
+Jaccard max asymmetry: 0.000e+00
+Jaccard max |diagonal - 1|: 0.000e+00
+Zone size sensitivity for E20 (Jaccard with E0 and E33 top-N sets):
+  N=90: Jaccard(E20,E0)=0.837 Jaccard(E20,E33)=0.731
+  N=180: Jaccard(E20,E0)=0.791 Jaccard(E20,E33)=0.827
+  N=360: Jaccard(E20,E0)=0.796 Jaccard(E20,E33)=0.846
+Transform sensitivity at weights 0.4/0.4/0.2 (top-180 Jaccard vs E20):
+W3_raw vs W3_sqrt: computed=0.925134 expected=0.925000 abs_diff=1.336898e-04 MATCH
+W3_raw vs W3_pct: computed=0.925134 expected=0.925000 abs_diff=1.336898e-04 MATCH
+W3_raw vs W1_raw: computed=0.827411 expected=0.827000 abs_diff=4.111675e-04 MATCH
+Stability: number of cells per zone_count value (0..5):
+  zone_count=0: 1541 cells
+  zone_count=1: 46 cells
+  zone_count=2: 27 cells
+  zone_count=3: 27 cells
+  zone_count=4: 46 cells
+  zone_count=5: 107 cells
+cells in E20 zone with zone_count 5 (robust): 107
+cells in E20 zone with zone_count below 5 (fragile): 73
+fragile E20-zone cells that are thin_obs: 3
+cells in union of the 5 zones: 253
+sha256 data\processed\cells_index_sens.csv: 8e6e52cb82ad58c86a03b6df06a8740ff1da1e6de1249b5f107d8e70c85223ad

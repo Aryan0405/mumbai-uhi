@@ -1,0 +1,11 @@
+colormap primary: inferno
+colormap agreement: ListedColormap white lightgrey orange blue darkred
+colormap stability: ListedColormap 6 discrete colours zone_count 0..5
+grid shape: 84 x 48
+box rectangle fractional grid coords: left=0.5320 right=0.7117 top=0.0438 bottom=0.2559
+skipped (already exists): docs\figures\map_index_primary.png
+image size docs\figures\map_index_primary.png: 1000 x 1750 pixels
+skipped (already exists): docs\figures\map_zone_agreement.png
+image size docs\figures\map_zone_agreement.png: 1000 x 1750 pixels
+wrote docs\figures\map_zone_stability.png
+image size docs\figures\map_zone_stability.png: 1000 x 1750 pixels
