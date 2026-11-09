@@ -1,0 +1,30 @@
+packages only in before (0):
+packages only in after (8):
+  affine=3.0.0
+  attrs=26.1.0
+  click=8.5.0
+  click-plugins=1.1.1.2
+  cligj=0.7.2
+  fribidi=1.0.16
+  jpeg=9f
+  rasterio=1.4.4
+packages in both with different versions (19):
+  cairo: 1.18.6 -> 1.18.4
+  fontconfig: 2.18.2 -> 2.15.0
+  geopandas: 1.2.0 -> 1.1.3
+  geopandas-base: 1.2.0 -> 1.1.3
+  geotiff: 1.7.4 -> 1.7.0
+  lcms2: 2.19.1 -> 2.19
+  libarchive: 3.8.8 -> 3.8.2
+  libgdal-core: 3.13.3 -> 3.11.4
+  libjpeg-turbo: 3.1.3 -> 2.0.0
+  libpq: 18.4 -> 17.10
+  libtiff: 4.7.2 -> 4.7.1
+  libxml2: 2.15.4 -> 2.13.9
+  mysql-common: 9.7.2 -> 9.3.0
+  mysql-libs: 9.7.2 -> 9.3.0
+  pcre2: 10.48 -> 10.46
+  pillow: 13.0.0 -> 12.2.0
+  proj: 9.7.1 -> 9.3.1
+  pyogrio: 0.12.1 -> 0.10.0
+  pyproj: 3.7.2 -> 3.6.1

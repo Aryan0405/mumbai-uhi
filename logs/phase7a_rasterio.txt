@@ -1,0 +1,19 @@
+python 3.11.18
+numpy 2.4.6
+rasterio 1.4.4 gdal 3.11.4
+
+data\composites_months\lst_march.tif
+  width=789 height=1393 count=1
+  dtype=float32
+  crs=EPSG:32643
+  transform=(30.0, 0.0, 265091.74835679843, 0.0, -30.0, 2131925.976660132, 0.0, 0.0, 1.0)
+  nodata=nan
+  finite_pixels=1099077 min=300.801086 max=327.571045 mean=308.356506
+
+data\composites_months\lst_aprmay.tif
+  width=789 height=1393 count=1
+  dtype=float32
+  crs=EPSG:32643
+  transform=(30.0, 0.0, 265091.74835679843, 0.0, -30.0, 2131925.976660132, 0.0, 0.0, 1.0)
+  nodata=nan
+  finite_pixels=1099077 min=302.346069 max=329.652588 mean=310.245544

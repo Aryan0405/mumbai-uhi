@@ -1,0 +1,19 @@
+after rasterio install
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+scikit-learn 1.9.1
+
+rows after mask and dropna: 1794
+determinism check: OK
+k=2 value=0.494168 target=0.494168 diff=2.147208e-08 MATCH
+k=3 value=0.359270 target=0.359270 diff=4.302868e-07 MATCH
+k=4 value=0.370169 target=0.370169 diff=3.213127e-07 MATCH
+k=5 value=0.306941 target=0.306941 diff=3.793088e-07 MATCH
+k=6 value=0.305566 target=0.305566 diff=4.870426e-07 MATCH
+k=7 value=0.303950 target=0.303950 diff=3.687737e-07 MATCH
+k=8 value=0.297139 target=0.297139 diff=4.925008e-07 MATCH
+k=9 value=0.297564 target=0.297564 diff=2.581767e-07 MATCH
+k=10 value=0.298447 target=0.298447 diff=2.775275e-07 MATCH
+argmax k: 2
