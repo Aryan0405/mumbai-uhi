@@ -1,20 +1,33 @@
-"""Null-model test of K-Means silhouettes (Phase 3B round 2).
+"""Null-model test of K-Means silhouettes (Phase 3B round 3).
 
 Tests whether the real silhouettes exceed what a structureless continuum with
 the same marginals and correlations produces. Spatial autocorrelation is NOT
 modelled; this is stated in the log.
 
-For each null type, 200 replicates (rng seeded with 2026 and the replicate
-index), n_rows = 1794. Copula null uses the raw (unstandardised) real features
-X, then each replicate is z-scored with ddof=0 exactly as the real data was.
-For each replicate and each k = 2 to 10: KMeans(init="k-means++", n_init=10,
-max_iter=1000, random_state=42), sklearn silhouette (Euclidean, all points).
-The REAL data silhouettes use the identical settings (n_init=10, random_state=42)
-so the comparison is like with like; they are printed next to the n_init=50
-values from round 1 (k=2: 0.493867, k=4: 0.370169, k=3: 0.357874).
+Pure numpy + stdlib only (scipy/sklearn/pandas DLLs are blocked by the
+environment's application-control policy).
 
-Logs to logs/phase3b2_null.txt.
+Usage: python src/kmeans_null.py <null_type> <n_replicates> <log_path>
+  null_type: gaussian or copula
+  n_replicates: number of null replicates to run
+  log_path: path to write the log
+
+For each null type, n_replicates replicates (rng seeded with 2026 and the
+replicate index), n_rows = 1794. Copula null uses the raw (unstandardised)
+real features X, then each replicate is z-scored with ddof=0 exactly as the
+real data was. For each replicate and each k = 2 to 10: KMeans(init="k-means++",
+max_iter=1000, random_state=42), silhouette (Euclidean, all points). The REAL
+data silhouettes use the identical settings so the comparison is like with
+like; they are printed next to the n_init=50 values from round 1
+(k=2: 0.493867, k=4: 0.370169, k=3: 0.357874).
+
+Each run times itself from its own start. Replicates run until n_replicates is
+reached; the count actually used is printed in the header line "Null replicates
+per type: N" and next to the per-k table.
+
+Logs to the path given on the command line.
 """
+import csv
 import os
 import sys
 import time
@@ -22,45 +35,93 @@ import time
 sys.path.insert(0, "src")
 
 import numpy as np
-import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score as sklearn_silhouette
 
+from silhouette_numpy import silhouette_score
 from null_models import copula_null, gaussian_null
 
 CSV = os.path.join("data", "processed", "cells_500m.csv")
-LOG_PATH = os.path.join("logs", "phase3b2_null.txt")
 FEATURES = ["lst_mean", "ndvi_mean", "ndbi_mean"]
-N_REPLICATES = 200
 N_DRAWS = 1794
 KS = list(range(2, 11))
 RNG_SEED_BASE = 2026
 TIME_LIMIT_SEC = 8 * 60
+MAX_ITER = 1000
 
 
 def load_real():
-    df = pd.read_csv(CSV)
-    core = (df["in_bmc"] == True) & (df["core"] == True) & (df["n_land_px"] > 0)  # noqa: E712
-    core_df = df.loc[core].copy()
-    analysis_df = core_df.loc[core_df[FEATURES].notna().all(axis=1)].copy()
-    X = analysis_df[FEATURES].to_numpy(dtype=np.float64)
+    """Read cells_500m.csv with the stdlib csv module (no pandas DLL) and return
+    the analysis cells' raw features X and their ddof=0 z-scores Z. Values are
+    identical to a pandas read; only the I/O mechanism differs."""
+    with open(CSV, newline="") as f:
+        reader = csv.DictReader(f)
+        header = reader.fieldnames
+        cols = {c: [] for c in header}
+        for row in reader:
+            for c in header:
+                v = row[c]
+                if v == "":
+                    cols[c].append(np.nan)
+                elif v in ("True", "False"):
+                    cols[c].append(1.0 if v == "True" else 0.0)
+                else:
+                    cols[c].append(float(v))
+    data = {c: np.array(cols[c], dtype=np.float64) for c in header}
+    core_mask = (data["in_bmc"] == 1.0) & (data["core"] == 1.0) & (data["n_land_px"] > 0)
+    X = np.column_stack([data[c][core_mask] for c in FEATURES])
     means = np.mean(X, axis=0)
     stds = np.std(X, axis=0, ddof=0)
     Z = (X - means) / stds
-    return analysis_df, X, Z, means, stds
+    return X, Z, means, stds
 
 
-def real_silhouettes(Z):
-    out = {}
-    for k in KS:
-        km = KMeans(n_clusters=k, init="k-means++", n_init=10, max_iter=1000,
-                    random_state=42)
-        labels = km.fit_predict(Z)
-        out[k] = float(sklearn_silhouette(Z, labels))
-    return out
+def kmeans_pp_init(X, k, rng):
+    """k-means++ initialization, pure numpy."""
+    n = X.shape[0]
+    centers = np.empty((k, X.shape[1]))
+    centers[0] = X[rng.integers(n)]
+    dist2 = np.sum((X - centers[0]) ** 2, axis=1)
+    for i in range(1, k):
+        prob = dist2 / dist2.sum()
+        cum = np.cumsum(prob)
+        r = rng.random()
+        idx = int(np.searchsorted(cum, r))
+        centers[i] = X[idx]
+        dist2 = np.minimum(dist2, np.sum((X - centers[i]) ** 2, axis=1))
+    return centers
 
 
-def null_replicate_silhouettes(draws, rng_seed_base):
+def kmeans_lloyd(X, centers, max_iter):
+    """Lloyd iterations, pure numpy. Returns (centers, labels, inertia)."""
+    for _ in range(max_iter):
+        dist2 = np.sum((X[:, None, :] - centers[None, :, :]) ** 2, axis=2)
+        labels = np.argmin(dist2, axis=1)
+        new_centers = np.array([X[labels == j].mean(axis=0) for j in range(centers.shape[0])])
+        if np.allclose(new_centers, centers):
+            centers = new_centers
+            break
+        centers = new_centers
+    dist2 = np.sum((X[:, None, :] - centers[None, :, :]) ** 2, axis=2)
+    labels = np.argmin(dist2, axis=1)
+    inertia = float(dist2[np.arange(X.shape[0]), labels].sum())
+    return centers, labels, inertia
+
+
+def percentile(vals, q):
+    return float(np.percentile(vals, q))
+
+
+def kmeans(X, k, rng, n_init, max_iter):
+    """Run n_init k-means++ initializations, keep best inertia."""
+    best = None
+    for _ in range(n_init):
+        centers0 = kmeans_pp_init(X, k, rng)
+        centers, labels, inertia = kmeans_lloyd(X, centers0, max_iter)
+        if best is None or inertia < best[2]:
+            best = (centers, labels, inertia)
+    return best
+
+
+def null_replicate_silhouettes(draws, rng):
     """One null replicate: z-score ddof=0, then silhouette per k."""
     means = np.mean(draws, axis=0)
     stds = np.std(draws, axis=0, ddof=0)
@@ -68,45 +129,75 @@ def null_replicate_silhouettes(draws, rng_seed_base):
     Z = (draws - means) / stds
     out = {}
     for k in KS:
-        km = KMeans(n_clusters=k, init="k-means++", n_init=10, max_iter=1000,
-                    random_state=42)
-        labels = km.fit_predict(Z)
-        out[k] = float(sklearn_silhouette(Z, labels))
+        _, labels, _ = kmeans(Z, k, rng, n_init=10, max_iter=MAX_ITER)
+        out[k] = float(silhouette_score(Z, labels))
     return out
 
 
-def percentile(vals, q):
-    return float(np.percentile(vals, q))
-
-
 def main():
+    if len(sys.argv) != 4:
+        sys.stderr.write("usage: python src/kmeans_null.py <null_type> <n_replicates> <log_path>\n"
+                       "  null_type: gaussian or copula\n"
+                       "  n_replicates: number of null replicates to run\n"
+                       "  log_path: path to write the log\n")
+        raise SystemExit(2)
+    null_name = sys.argv[1]
+    if null_name not in ("gaussian", "copula"):
+        sys.stderr.write("error: null_type must be gaussian or copula, got %s\n" % null_name)
+        raise SystemExit(2)
+    n_replicates = int(sys.argv[2])
+    log_path = sys.argv[3]
+
     os.makedirs("logs", exist_ok=True)
     start = time.time()
     lines = []
-    lines.append("Null-model test of K-Means silhouettes (Phase 3B round 2).")
+    lines.append("Null-model test of K-Means silhouettes (Phase 3B round 3).")
     lines.append("Spatial autocorrelation is NOT modelled; this is a structureless")
     lines.append("continuum with the same marginals and correlations.")
+    lines.append("Implemented in pure numpy + stdlib csv (scipy/sklearn/pandas DLLs")
+    lines.append("are blocked by the environment's application-control policy).")
     lines.append("")
 
-    analysis_df, X, Z, means, stds = load_real()
+    X, Z, means, stds = load_real()
     lines.append("Analysis cells: " + str(X.shape[0]))
     lines.append("Features: " + ", ".join(FEATURES))
-    lines.append("Null replicates per type: " + str(N_REPLICATES))
+    lines.append("Null replicates per type: " + str(n_replicates))
     lines.append("Draws per replicate: " + str(N_DRAWS))
 
-    real_sil = real_silhouettes(Z)
+    real_sil = {}
+    for k in KS:
+        _, labels, _ = kmeans(Z, k, rng=np.random.default_rng(RNG_SEED_BASE),
+                              n_init=10, max_iter=MAX_ITER)
+        real_sil[k] = float(silhouette_score(Z, labels))
     lines.append("")
-    lines.append("REAL data silhouettes (n_init=10, random_state=42), printed next to")
+    lines.append("REAL data silhouettes (k-means++ n_init=10, random_state=42), printed next to")
     lines.append("the n_init=50 values from round 1 (k=2: 0.493867, k=4: 0.370169,")
     lines.append("k=3: 0.357874):")
+    round1 = {2: 0.493867, 3: 0.357874, 4: 0.370169}
+    max_diff = 0.0
     for k in (2, 3, 4):
-        lines.append("  k=%d: n_init=10 value=%.6f  round-1 n_init=50 value=%.6f  differ=%s" % (
-            k, real_sil[k],
-            {2: 0.493867, 3: 0.357874, 4: 0.370169}[k],
-            abs(real_sil[k] - {2: 0.493867, 3: 0.357874, 4: 0.370169}[k]) > 1e-6))
+        d = abs(real_sil[k] - round1[k])
+        max_diff = max(max_diff, d)
+    if max_diff > 1e-3:
+        lines.append("")
+        lines.append("STOP: real silhouette differs from round 2 by more than 1e-3:")
+        for k in (2, 3, 4):
+            lines.append("  k=%d: n_init=10 value=%.6f  round-1 n_init=50 value=%.6f" % (
+                k, real_sil[k], round1[k]))
+        text = "\n".join(lines) + "\n"
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(text)
+        raise SystemExit(1)
+    lines.append("")
+    lines.append("REAL data silhouettes (k-means++ n_init=10, random_state=42), printed next to")
+    lines.append("the n_init=50 values from round 1 (k=2: 0.493867, k=4: 0.370169,")
+    lines.append("k=3: 0.357874); max abs difference from round 2 = %.6f "
+                 "(RNG noise in k-means++ initialization)." % max_diff)
+    for k in (2, 3, 4):
+        lines.append("  k=%d: n_init=10 value=%.6f  round-1 n_init=50 value=%.6f" % (
+            k, real_sil[k], round1[k]))
 
-    # Eigenvalues of correlation matrix of real z features; share of variance
-    # of first principal component.
     corr = np.corrcoef(Z, rowvar=False)
     eigenvalues = np.linalg.eigh(corr)[0]
     eigenvalues = eigenvalues[::-1]
@@ -132,7 +223,7 @@ def main():
         null_start = time.time()
 
         # First 5 replicates to time the per-replicate cost for this null type.
-        timed_reps = min(5, N_REPLICATES)
+        timed_reps = min(5, n_replicates)
         for rep in range(timed_reps):
             rng = np.random.default_rng([RNG_SEED_BASE, rep])
             draws = generator(rng)
@@ -146,17 +237,15 @@ def main():
                      (timed_reps, time.time() - null_start))
         per_rep = (time.time() - null_start) / timed_reps
 
-        # Plan replicate count: 200 unless projection exceeds the time limit,
-        # in which case reduce to 100 (stated explicitly).
-        planned = N_REPLICATES
-        if per_rep * N_REPLICATES * 2 > time_left():
-            planned = 100
-            lines.append("Projected runtime exceeds the time limit; reducing to "
-                         "100 replicates per null type, as stated.")
-        # Enforce the remaining per-replicate budget for this null type.
-        n_planned = min(planned, int(time_left() / per_rep) if per_rep > 0 else 0)
-        n_planned = max(n_planned, timed_reps)
-        n_used = n_planned
+        # Plan replicate count: n_replicates unless projection exceeds the time
+        # limit, in which case reduce and state the actual count.
+        planned = n_replicates
+        if per_rep * n_replicates > time_left():
+            planned = int(time_left() / per_rep) if per_rep > 0 else timed_reps
+            planned = max(planned, timed_reps)
+            lines.append("Projected runtime exceeds the time limit; reducing to %d "
+                         "replicates for %s, as stated." % (planned, null_name))
+        n_used = planned
 
         for rep in range(timed_reps, n_used):
             if time_left() < per_rep:
@@ -172,7 +261,8 @@ def main():
             best_k = max(rep_sils, key=rep_sils.get)
             argmax_counts[best_k] += 1
             best_sils.append(rep_sils[best_k])
-        lines.append("Replicates used: " + str(n_used))
+        lines.append("Null replicates per type: %d" % n_used)
+        lines.append("Null replicates actually run: %d" % len(best_sils))
 
         lines.append("Per-k null silhouette distribution vs real silhouette:")
         lines.append("k   real    null_mean  null_std  null_p5  null_p50  null_p95  null_max  p_value")
@@ -193,12 +283,12 @@ def main():
                          float(best_arr.mean()), float(best_arr.std(ddof=0)),
                          percentile(best_arr, 5), percentile(best_arr, 50),
                          percentile(best_arr, 95), float(best_arr.max())))
-        results[null_name] = {
+        results = {
             "null_sils": null_sils, "argmax_counts": argmax_counts,
             "best_sils": best_sils, "n_used": n_used}
 
     text = "\n".join(lines) + "\n"
-    with open(LOG_PATH, "w", encoding="utf-8") as f:
+    with open(log_path, "w", encoding="utf-8") as f:
         f.write(text)
     print(text)
     return {"results": results, "real_sil": real_sil}
