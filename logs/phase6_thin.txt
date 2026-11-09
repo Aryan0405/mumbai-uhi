@@ -1,0 +1,36 @@
+python 3.11.18
+numpy 2.4.6
+scipy 1.17.1
+pandas 3.1.0
+N_PERM=5000 SEED=2026 N_TOP=180
+core cells after mask: 1794
+thin_obs count=83 zone_primary=180 zone_robust=107 zone_fragile=73
+thin T_obs=4.867470 perm_mean=0.340627 perm_std=0.085823 perm_max=0.771084 p=0.000200
+thin rows min=37 max=71 median=52.0 cols min=5 max=38 median=32.0
+thin in robust=5 thin in fragile=3 thin in zone_primary=8 thin outside zone_primary=75
+fisher table=[[8,75],[172,1539]] odds_ratio=0.954419 p=1.000000
+thin vs non-thin medians and Mann-Whitney U p (two-sided):
+  lst_mean thin_median=39.274840 nonthin_median=39.953867 U=63651 p=0.110535
+  ndvi_mean thin_median=0.383199 nonthin_median=0.305450 U=84971 p=0.002448
+  ndbi_mean thin_median=-0.057820 nonthin_median=-0.040002 U=57943 p=0.004593
+  pop_density_land thin_median=14019.162933 nonthin_median=37231.206909 U=49142 p=0.000002
+  index_primary thin_median=-0.359954 nonthin_median=0.187723 U=55422 p=0.000722
+  vc_min thin_median=19.000000 nonthin_median=22.000000 U=2381 p=0.000000
+  vc_median thin_median=20.000000 nonthin_median=23.000000 U=0 p=0.000000
+  vc_le20_share thin_median=0.902344 nonthin_median=0.000000 U=142013 p=0.000000
+zone_without_thin count=180 zone_primary_not_thin count=172 intersection=172 union=180 Jaccard=0.955556
+zone_primary_not_thin not in zone_without_thin=0 zone_without_thin not in zone_primary_not_thin=8
+thin count by column band (width 8):
+  cols 0-7: 2
+  cols 8-15: 2
+  cols 16-23: 3
+  cols 24-31: 34
+  cols 32-39: 42
+  cols 40-47: 0
+thin count by row band (width 14):
+  rows 0-13: 0
+  rows 14-27: 0
+  rows 28-41: 12
+  rows 42-55: 56
+  rows 56-69: 13
+  rows 70-83: 2

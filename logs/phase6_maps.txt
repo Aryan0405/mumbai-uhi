@@ -1,0 +1,30 @@
+python 3.11.18
+numpy 2.4.6
+pandas 3.1.0
+matplotlib 3.11.2
+xmin_edge=265091.748357 ymax_edge=2131925.976660
+grid alignment cell_col=True cell_row=True
+pixel cell_id=213 row=4 col=21 category=both zones read RGB=(0.5451,0.0000,0.0000) expected RGB=(0.5451,0.0000,0.0000) max diff=0.000000 MATCH
+pixel cell_id=835 row=17 col=19 category=primary only read RGB=(1.0000,0.6471,0.0000) expected RGB=(1.0000,0.6471,0.0000) max diff=0.000000 MATCH
+pixel cell_id=547 row=11 col=19 category=noexp only read RGB=(0.0000,0.0000,1.0000) expected RGB=(0.0000,0.0000,1.0000) max diff=0.000000 MATCH
+pixel cell_id=16 row=0 col=16 category=neither read RGB=(0.8275,0.8275,0.8275) expected RGB=(0.8275,0.8275,0.8275) max diff=0.000000 MATCH
+pixel cell_id=N/A row=0 col=0 category=not_core read RGB=(1.0000,1.0000,1.0000) expected RGB=(1.0000,1.0000,1.0000) max diff=0.000000 MATCH
+wrote docs\figures\map_zone_agreement_r3.png size 1000 x 1750 pixels
+map1 colormap name=unnamed colours=['#ffffff', '#d3d3d3', '#ffa500', '#0000ff', '#8b0000']
+map1 legend label=not core (2238 cells) facecolor=#ffffff
+map1 legend label=neither (1593 cells) facecolor=#d3d3d3
+map1 legend label=primary only (21 cells) facecolor=#ffa500
+map1 legend label=noexp only (21 cells) facecolor=#0000ff
+map1 legend label=both zones (159 cells) facecolor=#8b0000
+map1 sha256=646a5c41343c93ac615738ec43f49d457fe29fb997dfd5809ef7858529ba69c3
+pixel cell_id=213 row=4 col=21 category=robust read RGB=(0.5451,0.0000,0.0000) expected RGB=(0.5451,0.0000,0.0000) max diff=0.000000 MATCH
+pixel cell_id=214 row=4 col=22 category=fragile read RGB=(1.0000,0.6471,0.0000) expected RGB=(1.0000,0.6471,0.0000) max diff=0.000000 MATCH
+pixel cell_id=16 row=0 col=16 category=neither read RGB=(0.8275,0.8275,0.8275) expected RGB=(0.8275,0.8275,0.8275) max diff=0.000000 MATCH
+pixel cell_id=N/A row=0 col=0 category=not_core read RGB=(1.0000,1.0000,1.0000) expected RGB=(1.0000,1.0000,1.0000) max diff=0.000000 MATCH
+wrote docs\figures\map_thin_obs_r3.png size 1000 x 1750 pixels
+map2 colormap name=unnamed colours=['#ffffff', '#d3d3d3', '#ffa500', '#8b0000']
+map2 legend label=not core (2238 cells) facecolor=#ffffff
+map2 legend label=neither (1614 cells) facecolor=#d3d3d3
+map2 legend label=fragile (73 cells) facecolor=#ffa500
+map2 legend label=robust (107 cells) facecolor=#8b0000
+map2 sha256=7d76b287f5715eb1b33a3358542d4aacb66b2bae9c428c9c6f09c633a03b104c
