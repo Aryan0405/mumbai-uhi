@@ -1,0 +1,72 @@
+B1 geojson feature count: expected=2005 observed=2005 PASS
+B1 all features Polygon: expected=0 observed=0 PASS
+B1 geojson core features: expected=1794 observed=1794 PASS
+B1 core feature geometry present: expected=0 observed=0 PASS
+B1 loaded cells_index.csv rows=1794 cells_index_sens.csv rows=1794 cells_index_month.csv rows=4032
+B2 core cell_id sizes: geojson=1794 cells_index=1794 sens=1794 month=1794
+B2 geojson core ids == cells_index ids: expected=True observed=True PASS
+B2 geojson core ids == sens ids: expected=True observed=True PASS
+B2 geojson core ids == month core ids: expected=True observed=True PASS
+B2 geojson cell_id == cell_row*48 + cell_col for every feature: expected=0 observed=0 PASS
+B3 lst_mean mismatches (expected 0): 0
+B3 lst_mean agrees within 1e-9: expected=0 observed=0 PASS
+B3 ndvi_mean mismatches (expected 0): 0
+B3 ndvi_mean agrees within 1e-9: expected=0 observed=0 PASS
+B3 ndbi_mean mismatches (expected 0): 0
+B3 ndbi_mean agrees within 1e-9: expected=0 observed=0 PASS
+B3 pop mismatches (expected 0): 0
+B3 pop agrees within 1e-9: expected=0 observed=0 PASS
+B3 pop_density_land mismatches (expected 0): 0
+B3 pop_density_land agrees within 1e-9: expected=0 observed=0 PASS
+B3 thin_obs mismatches (expected 0): 0
+B3 thin_obs agrees: expected=0 observed=0 PASS
+B4 csv index lst_mean nulls on core cells: expected=0 observed=0 PASS
+B4 csv index ndvi_mean nulls on core cells: expected=0 observed=0 PASS
+B4 csv index ndbi_mean nulls on core cells: expected=0 observed=0 PASS
+B4 csv index pop nulls on core cells: expected=0 observed=0 PASS
+B4 csv index pop_density_land nulls on core cells: expected=0 observed=0 PASS
+B4 csv index H nulls on core cells: expected=0 observed=0 PASS
+B4 csv index S nulls on core cells: expected=0 observed=0 PASS
+B4 csv index E_raw nulls on core cells: expected=0 observed=0 PASS
+B4 csv index index_primary nulls on core cells: expected=0 observed=0 PASS
+B4 csv index index_noexp nulls on core cells: expected=0 observed=0 PASS
+B4 csv index rank_primary nulls on core cells: expected=0 observed=0 PASS
+B4 csv index rank_noexp nulls on core cells: expected=0 observed=0 PASS
+B4 csv index zone_primary nulls on core cells: expected=0 observed=0 PASS
+B4 csv index zone_noexp nulls on core cells: expected=0 observed=0 PASS
+B4 csv index thin_obs nulls on core cells: expected=0 observed=0 PASS
+B4 csv index zero_pop nulls on core cells: expected=0 observed=0 PASS
+B4 csv index low_confidence nulls on core cells: expected=0 observed=0 PASS
+B4 csv index cell_row nulls on core cells: expected=0 observed=0 PASS
+B4 csv index cell_col nulls on core cells: expected=0 observed=0 PASS
+B4 csv sens zone_robust nulls on core cells: expected=0 observed=0 PASS
+B4 csv sens zone_fragile nulls on core cells: expected=0 observed=0 PASS
+B4 csv sens zone_count nulls on core cells: expected=0 observed=0 PASS
+B4 csv month lst_march_c nulls on core cells: expected=0 observed=0 PASS
+B4 csv month lst_aprmay_c nulls on core cells: expected=0 observed=0 PASS
+B4 csv month index_primary_march nulls on core cells: expected=0 observed=0 PASS
+B4 csv month index_primary_aprmay nulls on core cells: expected=0 observed=0 PASS
+B4 csv month zone_primary_march nulls on core cells: expected=0 observed=0 PASS
+B4 csv month zone_primary_aprmay nulls on core cells: expected=0 observed=0 PASS
+B4 csv month month_class nulls on zone_primary core cells: expected=0 observed=0 PASS
+B4 geojson geometry null on core cells: expected=0 observed=0 PASS
+B5 feature count: expected=1794 observed=1794 PASS
+B6 zone_primary=180 zone_robust=107 zone_fragile=73 thin_obs=83 zm=180 za=180
+B6 month_class BOTH=158 ONLY_MARCH=11 ONLY_APRMAY=8 NEITHER=3 null=1614
+B6 feature count: expected=1794 observed=1794 PASS
+B6 sum zone_primary: expected=180 observed=180 PASS
+B6 sum zone_robust: expected=107 observed=107 PASS
+B6 sum zone_fragile: expected=73 observed=73 PASS
+B6 sum thin_obs: expected=83 observed=83 PASS
+B6 sum zone_primary_march: expected=180 observed=180 PASS
+B6 sum zone_primary_aprmay: expected=180 observed=180 PASS
+B6 month_class BOTH: expected=158 observed=158 PASS
+B6 month_class ONLY_MARCH: expected=11 observed=11 PASS
+B6 month_class ONLY_APRMAY: expected=8 observed=8 PASS
+B6 month_class NEITHER: expected=3 observed=3 PASS
+B6 month_class null: expected=1614 observed=1614 PASS
+B6 zone_robust and zone_fragile disjoint: expected=True observed=True PASS
+B6 zone_robust union zone_fragile equals zone_primary: expected=True observed=True PASS
+B7 wrote data\app\cells_app_r2.geojson size bytes=1365767
+B7 sha256 84b4c06200e4dfc0061bfc1414070308f6d8bd98011f8faacfc8de3d6b790b48
+B8 roundtrip feature count: expected=1794 observed=1794 PASS
