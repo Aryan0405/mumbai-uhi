@@ -11,8 +11,8 @@ dependencies:
   - pandas
   - matplotlib
   - folium
-  - pydeck
   - streamlit
+  - plotly
   - pytest
   - requests
   - tqdm

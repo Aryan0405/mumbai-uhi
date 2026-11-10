@@ -11,6 +11,9 @@ An interactive map of land surface heat hazard and population exposure for Great
 - **Month view:** whether each zone cell appears in the March composite zone, the April-May composite zone, both, or neither.
 - **Cell detail:** every stored property for one cell.
 
+![Zone map: robust and fragile hotspot cells](docs/zone_map.png)
+![Month view: which monthly zones each cell appears in](docs/month_view.png)
+
 ## Data
 
 | Layer | Source | Notes |
@@ -57,7 +60,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-`environment.yml` does not include plotly, so the `pip install -r requirements.txt` step is required. The pinned versions in `requirements.txt` (streamlit, plotly, pandas, numpy) are the ones the app was tested with. Other versions are untested.
+`requirements.txt` pins the versions the app was tested with (streamlit, plotly, pandas, numpy). Other versions are untested.
 
 The app reads `data/app/cells_app_r2.geojson` (about 1.3 MB, 1794 features, 30 properties each), which is committed. The basemap tiles load from the internet.
 
