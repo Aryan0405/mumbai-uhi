@@ -49,7 +49,9 @@ Grid: 84 x 48 = 4032 cells in EPSG:32643. 2005 cells intersect BMC and 1794 are 
 - The app shows rounded values. Zone flags come from full precision data and are never recomputed from rounded values.
 - Sanity checks against a park area and the coastline were consistent, but the park box coordinates are approximate and unverified.
 - There is no automated test for the app itself. The 62 tests cover the data pipeline utilities. The app was checked by hand.
-- Most logs are gitignored and are not shipped evidence.
+- Most logs are gitignored (15 are tracked) and are not shipped evidence.
+- `src/month_index_r2.py` was edited after it produced `cells_index_month.csv`, so that file's provenance rests on the independent recompute in `src/verify_month_csv_r3.py`.
+- The BMC boundary used here covers 458.1 km2, about 5 percent below the 483.14 km2 on the MCGM site. The cause has not been checked.
 
 ## Run it
 
@@ -60,9 +62,21 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-`requirements.txt` pins the versions the app was tested with (streamlit, plotly, pandas, numpy). Other versions are untested.
+`environment.yml` pins only Python 3.11. `requirements.txt` pins four packages (streamlit, plotly, pandas, numpy), not the whole environment. geopandas, shapely, rasterio and pyarrow are not pinned. Running `pip install -r requirements.txt` after the conda step replaces pandas 3.1.1 with 3.1.0.
 
-The app reads `data/app/cells_app_r2.geojson` (about 1.3 MB, 1794 features, 30 properties each), which is committed. The basemap tiles load from the internet.
+If `conda activate uhi` tells you to run `conda init` (seen in a fresh Linux Codespace), initialise your shell first, for example `eval "$(conda shell.bash hook)"` in bash.
+
+Creating the environment peaked at about 4.3 GB of memory for the conda process (measured once). It was killed three times on a 2 core, 8 GB Linux machine and finished on 4 cores, 16 GB. The cause was not isolated.
+
+**Tested:**
+
+- Linux x86_64, 4 cores, 16 GB, OpenBLAS: the environment builds, 62 tests pass, and all four app views render.
+- Windows, hand-built environment: 62 tests pass.
+- Windows, environment built from `environment.yml`: pytest crashed with a native numpy error during the 28th test, and the Cell detail view failed on a blocked pyarrow DLL on the author's PC. The cause is unresolved.
+
+Combinations other than these are not tested.
+
+The app reads `data/app/cells_app_r2.geojson` (about 1.4 MB, 1794 features, 30 properties each), which is committed. The basemap tiles load from the internet.
 
 Tests: `python -m pytest tests -q`
 
