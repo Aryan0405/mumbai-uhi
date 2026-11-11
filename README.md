@@ -52,6 +52,15 @@ Grid: 84 x 48 = 4032 cells in EPSG:32643. 2005 cells intersect BMC and 1794 are 
 - Most logs are gitignored (15 are tracked) and are not shipped evidence.
 - `src/month_index_r2.py` was edited after it produced `cells_index_month.csv`, so that file's provenance rests on the independent recompute in `src/verify_month_csv_r3.py`.
 - The BMC boundary used here covers 458.1 km2, about 5 percent below the 483.14 km2 on the MCGM site. The cause has not been checked.
+- The 0.80 overlap between the March and April-May zones and the 106 of 107 figure come from `logs/phase7b_month_index.txt` and `logs/phase7c_verify_r3.txt`, which are not in the repository. STATUS.md also shows a Jaccard of 0.644 between the March and April-May zones. That figure is for LST alone, not for the full index.
+
+## Data sources and licence
+
+- Landsat 8/9 imagery courtesy of the U.S. Geological Survey. Landsat data are in the public domain.
+- Population: WorldPop (School of Geography and Environmental Science, University of Southampton, www.worldpop.org), licensed CC BY 4.0. The values were aggregated to the 500 m grid, so the per-cell population in this repository is a derived product.
+- Basemap tiles: OpenStreetMap contributors and CARTO.
+- The source and licence of the ward boundary file are not recorded in this repository.
+- No open source licence has been added to the code or the derived data, so the default copyright rules apply.
 
 ## Run it
 
@@ -66,7 +75,7 @@ streamlit run app.py
 
 If `conda activate uhi` tells you to run `conda init` (seen in a fresh Linux Codespace), initialise your shell first, for example `eval "$(conda shell.bash hook)"` in bash.
 
-Creating the environment peaked at about 4.3 GB of memory for the conda process (measured once). It was killed three times on a 2 core, 8 GB Linux machine and finished on 4 cores, 16 GB. The cause was not isolated.
+Creating the environment peaked at about 4.2 GiB of memory for the conda process (measured once, on one machine). It was killed three times on a 2 core, 8 GB Linux machine and finished on 4 cores, 16 GB. The cause was not isolated.
 
 **Tested:**
 
@@ -84,4 +93,4 @@ The pipeline scripts are in `src/`. A step-by-step guide to regenerate the data 
 
 ## Status
 
-Work in progress. The repository is private until the README claims match the outputs and the history cleanup is done.
+Complete as a portfolio project. Open items are the unresolved Windows failure described under "Run it", the unrecorded ward boundary source, and the missing guide for regenerating the data from raw Landsat.
