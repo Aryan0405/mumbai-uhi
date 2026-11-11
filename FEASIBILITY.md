@@ -1,5 +1,7 @@
 # FEASIBILITY.md - Phase 1 Gate Results
 
+> Phase 1 record from 2026-11-07. The population rule in check 4 was revised after inspection, see the last section. Later results are in README.md and STATUS.md.
+
 Run timestamp: 20261107_165144
 Command: `conda run --no-capture-output -n uhi python src/smoke_test.py`
 Raw log: logs/smoke_20261107_165144.log

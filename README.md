@@ -57,9 +57,9 @@ Grid: 84 x 48 = 4032 cells in EPSG:32643. 2005 cells intersect BMC and 1794 are 
 ## Data sources and licence
 
 - Landsat 8/9 imagery courtesy of the U.S. Geological Survey. Landsat data are in the public domain.
-- Population: WorldPop (School of Geography and Environmental Science, University of Southampton, www.worldpop.org), licensed CC BY 4.0. The values were aggregated to the 500 m grid, so the per-cell population in this repository is a derived product.
+- Population: WorldPop (School of Geography and Environmental Science, University of Southampton, www.worldpop.org), licensed CC BY 4.0 (Bondarenko, Kerr, Sorichetta and Tatem 2020, India constrained 100 m, doi 10.5258/SOTON/WP00684). The values were aggregated to the 500 m grid, so the per-cell population in this repository is a derived product.
 - Basemap tiles: OpenStreetMap contributors and CARTO.
-- The source and licence of the ward boundary file are not recorded in this repository.
+- Ward boundary: BMC ward polygons, recorded in PLAN.md as coming from the DataMeet Municipal Spatial Data collection (https://projects.datameet.org/Municipal_Spatial_Data/). The boundary file itself is not in this repository. Licence statements for that collection are not consistent across sources, so check them before reusing the file.
 - No open source licence has been added to the code or the derived data, so the default copyright rules apply.
 
 ## Run it
@@ -93,4 +93,4 @@ The pipeline scripts are in `src/`. A step-by-step guide to regenerate the data 
 
 ## Status
 
-Complete as a portfolio project. Open items are the unresolved Windows failure described under "Run it", the unrecorded ward boundary source, and the missing guide for regenerating the data from raw Landsat.
+Complete as a portfolio project. Open items are the unresolved Windows failure described under "Run it", the unverified licence of the ward boundary collection, and the missing guide for regenerating the data from raw Landsat. The code was written with an AI coding agent (OpenCode) in small rounds, under the rules in AGENTS.md. PLAN.md and FEASIBILITY.md are historical records and are not kept in sync with the final results.

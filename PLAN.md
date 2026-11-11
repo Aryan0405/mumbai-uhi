@@ -1,5 +1,7 @@
 # PLAN.md - mumbai-uhi
 
+> Historical planning document, written before the work started and not kept in sync. The final results and wording are in README.md and STATUS.md. The final product is a hazard and exposure map, not a vulnerability map, and the environment and run commands described here differ from the final ones.
+
 Project: Urban Heat Island (UHI) vulnerability map of Greater Mumbai from open satellite data, with a Streamlit app.
 Author: undergraduate data science student, Mumbai.
 Role of agent: senior data engineer building end-to-end, running code, reading errors, fixing them.
