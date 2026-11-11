@@ -65,13 +65,13 @@ Grid: 84 x 48 = 4032 cells in EPSG:32643. 2005 cells intersect BMC and 1794 are 
 ## Run it
 
 ```
-conda env create -f environment.yml
+conda env create -f env/environment.yml
 conda activate uhi
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-`environment.yml` pins only Python 3.11. `requirements.txt` pins four packages (streamlit, plotly, pandas, numpy), not the whole environment. geopandas, shapely, rasterio and pyarrow are not pinned. Running `pip install -r requirements.txt` after the conda step replaces pandas 3.1.1 with 3.1.0.
+`env/environment.yml` pins only Python 3.11. `requirements.txt` pins four packages (streamlit, plotly, pandas, numpy), not the whole environment. geopandas, shapely, rasterio and pyarrow are not pinned. Running `pip install -r requirements.txt` after the conda step replaces pandas 3.1.1 with 3.1.0.
 
 If `conda activate uhi` tells you to run `conda init` (seen in a fresh Linux Codespace), initialise your shell first, for example `eval "$(conda shell.bash hook)"` in bash.
 
