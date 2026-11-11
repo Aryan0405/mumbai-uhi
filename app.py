@@ -172,7 +172,7 @@ else:
             color_col="month_label",
             color_discrete_map=MONTH_COLORS,
         )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # Honesty panel on every view.
 with st.expander("How to read this map", expanded=True):
